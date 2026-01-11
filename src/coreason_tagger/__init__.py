@@ -8,14 +8,15 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
-"""
-coreason-tagger
-"""
+from coreason_tagger.assertion_detector import RegexBasedAssertionDetector
+from coreason_tagger.interfaces import BaseAssertionDetector, BaseExtractor, BaseLinker
+from coreason_tagger.schema import AssertionStatus, TaggedEntity
 
-__version__ = "0.1.0"
-__author__ = "Gowtham A Rao"
-__email__ = "gowtham.rao@coreason.ai"
-
-from .main import hello_world
-
-__all__ = ["hello_world"]
+__all__ = [
+    "BaseExtractor",
+    "BaseAssertionDetector",
+    "BaseLinker",
+    "RegexBasedAssertionDetector",
+    "AssertionStatus",
+    "TaggedEntity",
+]
