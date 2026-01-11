@@ -10,7 +10,7 @@
 
 from enum import Enum
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class AssertionStatus(str, Enum):
@@ -33,13 +33,13 @@ class TaggedEntity(BaseModel):
     and linked to a concept ID.
     """
 
-    span_text: str  # e.g., "severe headaches"
-    label: str  # e.g., "Symptom"
+    span_text: str = Field(..., min_length=1, description="The extracted text span.")
+    label: str = Field(..., min_length=1, description="The entity label (e.g., Symptom).")
 
     # The Link (What is it?)
-    concept_id: str  # e.g., "SNOMED:25064002"
-    concept_name: str  # e.g., "Migraine"
-    link_confidence: float  # e.g., 0.98
+    concept_id: str = Field(..., min_length=1, description="The unique concept ID (e.g., SNOMED:123).")
+    concept_name: str = Field(..., min_length=1, description="The canonical name of the concept.")
+    link_confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score between 0.0 and 1.0.")
 
     # The Context (Is it real?)
     assertion: AssertionStatus
