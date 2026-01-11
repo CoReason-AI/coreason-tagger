@@ -79,3 +79,55 @@ class TestRegexBasedAssertionDetector:
         text = "Just a random sentence with a finding."
         span = {"start": 28, "end": 35, "text": "finding"}
         assert detector.detect(text, span) == AssertionStatus.PRESENT
+
+    # --- Complex & Edge Cases ---
+
+    def test_conditional_negation(self, detector: RegexBasedAssertionDetector) -> None:
+        # "If no signs of infection" -> CONDITIONAL (not ABSENT)
+        text = "If no signs of infection are present."
+        span = {"start": 15, "end": 24, "text": "infection"}
+        # Priority: CONDITIONAL > ABSENT
+        assert detector.detect(text, span) == AssertionStatus.CONDITIONAL
+
+    def test_not_ruled_out(self, detector: RegexBasedAssertionDetector) -> None:
+        # "Pneumonia is not ruled out." -> POSSIBLE (Double negation / Override)
+        text = "Pneumonia is not ruled out."
+        span = {"start": 0, "end": 9, "text": "Pneumonia"}
+        assert detector.detect(text, span) == AssertionStatus.POSSIBLE
+
+    def test_ruled_out(self, detector: RegexBasedAssertionDetector) -> None:
+        # "Pneumonia is ruled out." -> ABSENT
+        text = "Pneumonia is ruled out."
+        span = {"start": 0, "end": 9, "text": "Pneumonia"}
+        assert detector.detect(text, span) == AssertionStatus.ABSENT
+
+    def test_cannot_rule_out(self, detector: RegexBasedAssertionDetector) -> None:
+        # "Cannot rule out tumor." -> POSSIBLE
+        text = "Cannot rule out tumor."
+        span = {"start": 16, "end": 21, "text": "tumor"}
+        assert detector.detect(text, span) == AssertionStatus.POSSIBLE
+
+    def test_unlikely(self, detector: RegexBasedAssertionDetector) -> None:
+        # "It is unlikely to be cancer." -> ABSENT
+        text = "It is unlikely to be cancer."
+        span = {"start": 21, "end": 27, "text": "cancer"}
+        assert detector.detect(text, span) == AssertionStatus.ABSENT
+
+    def test_no_evidence_of(self, detector: RegexBasedAssertionDetector) -> None:
+        # "No evidence of fracture." -> ABSENT
+        text = "No evidence of fracture."
+        span = {"start": 15, "end": 23, "text": "fracture"}
+        assert detector.detect(text, span) == AssertionStatus.ABSENT
+
+    def test_family_negation(self, detector: RegexBasedAssertionDetector) -> None:
+        # "No family history of heart disease." -> FAMILY (It's a family history assertion, even if negative)
+        text = "No family history of heart disease."
+        span = {"start": 21, "end": 34, "text": "heart disease"}
+        assert detector.detect(text, span) == AssertionStatus.FAMILY
+
+    def test_conditional_family(self, detector: RegexBasedAssertionDetector) -> None:
+        # "If mother has diabetes..." -> FAMILY (Context is mother, overrides conditional?)
+        # Logic: FAMILY > CONDITIONAL.
+        text = "If mother has diabetes check levels."
+        span = {"start": 14, "end": 22, "text": "diabetes"}
+        assert detector.detect(text, span) == AssertionStatus.FAMILY

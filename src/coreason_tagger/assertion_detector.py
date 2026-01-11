@@ -9,7 +9,7 @@
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
 import re
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from coreason_tagger.interfaces import BaseAssertionDetector
 from coreason_tagger.schema import AssertionStatus
@@ -22,7 +22,7 @@ class RegexBasedAssertionDetector(BaseAssertionDetector):
     """
 
     # Pre-compiled regex patterns for performance
-    PATTERNS = {
+    PATTERNS: Dict[AssertionStatus, List[str]] = {
         AssertionStatus.FAMILY: [
             r"\bmother\b",
             r"\bfather\b",
@@ -43,6 +43,8 @@ class RegexBasedAssertionDetector(BaseAssertionDetector):
             r"\bfree of\b",
             r"\bwithout\b",
             r"\bruled out\b",
+            r"\bunlikely\b",
+            r"\bno evidence of\b",
         ],
         AssertionStatus.POSSIBLE: [
             r"\bpossible\b",
@@ -59,9 +61,16 @@ class RegexBasedAssertionDetector(BaseAssertionDetector):
             r"\bshould\b",  # e.g., "should symptoms worsen"
         ],
         AssertionStatus.ASSOCIATED_WITH_SOMEONE_ELSE: [
-            r"\bpatient's\b\s+\w+",  # Generic catch-all might be hard with regex without dependency parsing
-            # We'll rely mostly on FAMILY for specific relatives
+            r"\bpatient's\b\s+\w+",
         ],
+    }
+
+    # Override patterns that should be checked first and return a specific status
+    # This helps with double negation or complex phrases like "not ruled out"
+    OVERRIDES: Dict[str, AssertionStatus] = {
+        r"\bnot ruled out\b": AssertionStatus.POSSIBLE,
+        r"\bnot unlikely\b": AssertionStatus.POSSIBLE,  # "Not unlikely" -> Possible
+        r"\bcannot rule out\b": AssertionStatus.POSSIBLE,
     }
 
     def detect(self, text: str, entity_span: Dict[str, Any]) -> AssertionStatus:
@@ -71,8 +80,10 @@ class RegexBasedAssertionDetector(BaseAssertionDetector):
 
         Logic:
         1. Extract a context window around the entity.
-        2. Check for patterns in priority order: FAMILY > ABSENT > POSSIBLE > CONDITIONAL.
-        3. Default to PRESENT.
+        2. Check for Overrides first.
+        3. Check for patterns in priority order: FAMILY > CONDITIONAL > ABSENT > POSSIBLE.
+           (Changed order: Conditional > Absent to catch 'if no...')
+        4. Default to PRESENT.
         """
         start = entity_span.get("start", 0)
         end = entity_span.get("end", len(text))
@@ -81,44 +92,49 @@ class RegexBasedAssertionDetector(BaseAssertionDetector):
         # For this atomic unit, we'll take the whole sentence if possible, or a window of +/- 50 chars
         # But to be robust, let's look at the preceding text mainly, and some following text.
 
-        window_start = max(0, start - 50)
-        window_end = min(len(text), end + 20)  # Look slightly ahead for "Condition if..."
+        window_start = max(0, start - 60)
+        window_end = min(len(text), end + 30)  # Look slightly ahead for "Condition if..."
 
         # A better approach for "sentence" might be finding the last period
         pre_text = text[:start]
         post_text = text[end:]
 
         last_period = pre_text.rfind(".")
-        if last_period != -1:
+        if last_period != -1 and last_period >= window_start:
             window_start = last_period + 1
 
         next_period = post_text.find(".")
-        if next_period != -1:
+        if next_period != -1 and (end + next_period) <= window_end:
             window_end = end + next_period
 
         context = text[window_start:window_end].lower()
 
-        # Priority Check
+        # 0. Check Overrides (Double Negations, etc.)
+        for pattern, status in self.OVERRIDES.items():
+            if re.search(pattern, context):
+                return status
 
-        # 1. Family History
+        # Priority Check (Updated)
+
+        # 1. Family History (Context is someone else)
         for pattern in self.PATTERNS[AssertionStatus.FAMILY]:
             if re.search(pattern, context):
                 return AssertionStatus.FAMILY
 
-        # 2. Absent (Negated)
+        # 2. Conditional (Overrides simple negation: "If no symptoms...")
+        for pattern in self.PATTERNS[AssertionStatus.CONDITIONAL]:
+            if re.search(pattern, context):
+                return AssertionStatus.CONDITIONAL
+
+        # 3. Absent (Negated)
         for pattern in self.PATTERNS[AssertionStatus.ABSENT]:
             if re.search(pattern, context):
                 return AssertionStatus.ABSENT
 
-        # 3. Possible
+        # 4. Possible
         for pattern in self.PATTERNS[AssertionStatus.POSSIBLE]:
             if re.search(pattern, context):
                 return AssertionStatus.POSSIBLE
-
-        # 4. Conditional
-        for pattern in self.PATTERNS[AssertionStatus.CONDITIONAL]:
-            if re.search(pattern, context):
-                return AssertionStatus.CONDITIONAL
 
         # Default
         return AssertionStatus.PRESENT
