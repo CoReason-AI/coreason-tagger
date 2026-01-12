@@ -9,48 +9,25 @@
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List
 
 from coreason_tagger.schema import AssertionStatus
 
 
-class BaseExtractor(ABC):
-    """
-    Abstract base class for Entity Extraction (NER).
-    """
-
-    @abstractmethod
-    def extract(self, text: str, labels: List[str]) -> List[Dict[str, Any]]:
-        """
-        Extracts entities from the text based on provided labels.
-        Returns a list of dictionaries with span information (start, end, text, label).
-        """
-        pass  # pragma: no cover
-
-
 class BaseAssertionDetector(ABC):
-    """
-    Abstract base class for Assertion Detection (Contextualization).
-    """
+    """Abstract base class for assertion detection strategies."""
 
     @abstractmethod
-    def detect(self, text: str, entity_span: Dict[str, Any]) -> AssertionStatus:
+    def detect(self, text: str, span_text: str, span_start: int, span_end: int) -> AssertionStatus:
         """
-        Determines the assertion status of an entity within the text.
-        entity_span is a dict containing 'start', 'end', 'text'.
-        """
-        pass  # pragma: no cover
+        Determine the assertion status of an entity within a given context.
 
+        Args:
+            text (str): The full context text (e.g., the sentence or paragraph).
+            span_text (str): The text of the entity itself (e.g., "headaches").
+            span_start (int): The character start index of the entity in `text`.
+            span_end (int): The character end index of the entity in `text`.
 
-class BaseLinker(ABC):
-    """
-    Abstract base class for Entity Linking (Normalization).
-    """
-
-    @abstractmethod
-    def link(self, text: str, label: str) -> Dict[str, Any]:
-        """
-        Links a text span (and its label) to a concept ID.
-        Returns a dict containing 'concept_id', 'concept_name', 'confidence'.
+        Returns:
+            AssertionStatus: The detected status (e.g., PRESENT, ABSENT).
         """
         pass  # pragma: no cover
