@@ -18,6 +18,8 @@ __all__ = ["logger"]
 # Remove default handler
 logger.remove()
 
+__all__ = ["logger"]
+
 # Sink 1: Stdout (Human-readable)
 logger.add(
     sys.stderr,
