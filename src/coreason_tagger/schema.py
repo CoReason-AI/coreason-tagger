@@ -24,6 +24,18 @@ class AssertionStatus(str, Enum):
     ASSOCIATED_WITH_SOMEONE_ELSE = "ASSOCIATED_WITH_SOMEONE_ELSE"
 
 
+class ExtractedSpan(BaseModel):
+    """
+    Represents a raw entity extracted by the NER model.
+    """
+
+    text: str = Field(..., description="The extracted text.")
+    label: str = Field(..., description="The predicted label.")
+    start: int = Field(..., description="Start character index.")
+    end: int = Field(..., description="End character index.")
+    score: float = Field(..., description="Confidence score.")
+
+
 class TaggedEntity(BaseModel):
     """
     Represents a normalized entity extracted from text with assertion and link.

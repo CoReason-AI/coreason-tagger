@@ -8,7 +8,6 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
-from pathlib import Path
 
 from coreason_tagger.utils.logger import logger
 
@@ -16,6 +15,7 @@ from coreason_tagger.utils.logger import logger
 def test_logger_initialization() -> None:
     """Test that the logger is initialized correctly and creates the log directory."""
     # Since the logger is initialized on import, we check side effects
+
 
 def test_logger_setup() -> None:
     # Logger is already configured in module scope

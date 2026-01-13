@@ -10,17 +10,17 @@
 
 from typing import Any, Dict, List
 
-from coreason_tagger.interfaces import BaseAssertionDetector, BaseExtractor, BaseLinker
-from coreason_tagger.schema import AssertionStatus
+from coreason_tagger.interfaces import BaseAssertionDetector, BaseLinker, BaseNERExtractor
+from coreason_tagger.schema import AssertionStatus, ExtractedSpan
 
 
-class ConcreteExtractor(BaseExtractor):
-    def extract(self, text: str, labels: List[str]) -> List[Dict[str, Any]]:
-        return [{"text": "test", "label": labels[0]}]
+class ConcreteExtractor(BaseNERExtractor):
+    def extract(self, text: str, labels: List[str]) -> List[ExtractedSpan]:
+        return [ExtractedSpan(text="test", label=labels[0], start=0, end=4, score=1.0)]
 
 
 class ConcreteAssertionDetector(BaseAssertionDetector):
-    def detect(self, text: str, entity_span: Dict[str, Any]) -> AssertionStatus:
+    def detect(self, text: str, span_text: str, span_start: int, span_end: int) -> AssertionStatus:
         return AssertionStatus.PRESENT
 
 
@@ -32,12 +32,15 @@ class ConcreteLinker(BaseLinker):
 def test_extractor_interface() -> None:
     extractor = ConcreteExtractor()
     result = extractor.extract("sample text", ["TestLabel"])
-    assert result == [{"text": "test", "label": "TestLabel"}]
+    assert len(result) == 1
+    assert isinstance(result[0], ExtractedSpan)
+    assert result[0].text == "test"
+    assert result[0].label == "TestLabel"
 
 
 def test_assertion_detector_interface() -> None:
     detector = ConcreteAssertionDetector()
-    result = detector.detect("sample text", {"text": "sample"})
+    result = detector.detect("sample text", "sample", 0, 6)
     assert result == AssertionStatus.PRESENT
 
 

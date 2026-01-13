@@ -9,14 +9,17 @@
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
 from coreason_tagger.assertion_detector import RegexBasedAssertionDetector
-from coreason_tagger.interfaces import BaseAssertionDetector, BaseExtractor, BaseLinker
-from coreason_tagger.schema import AssertionStatus, TaggedEntity
+from coreason_tagger.interfaces import BaseAssertionDetector, BaseLinker, BaseNERExtractor
+from coreason_tagger.ner import GLiNERExtractor
+from coreason_tagger.schema import AssertionStatus, ExtractedSpan, TaggedEntity
 
 __all__ = [
-    "BaseExtractor",
     "BaseAssertionDetector",
+    "BaseNERExtractor",
     "BaseLinker",
+    "GLiNERExtractor",
     "RegexBasedAssertionDetector",
     "AssertionStatus",
     "TaggedEntity",
+    "ExtractedSpan",
 ]
