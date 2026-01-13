@@ -35,29 +35,39 @@ class BaseAssertionDetector(ABC):
 
 
 class BaseNERExtractor(ABC):
-    """Abstract base class for NER extraction strategies."""
+    """Abstract base class for Named Entity Recognition extraction strategies."""
 
     @abstractmethod
     def extract(self, text: str, labels: List[str]) -> List[ExtractedSpan]:
         """
-        Extract entities from text using the provided labels.
+        Extract entities from the text based on the provided labels.
 
         Args:
             text (str): The input text to process.
-            labels (List[str]): A list of entity types to detect (e.g., ["Symptom", "Drug"]).
+            labels (List[str]): The list of entity labels to detect (e.g. ["Symptom", "Drug"]).
 
         Returns:
-            List[ExtractedSpan]: A list of detected entity spans.
+            List[ExtractedSpan]: A list of extracted entities with their positions and scores.
         """
         pass  # pragma: no cover
 
 
 class BaseLinker(ABC):
-    """Abstract base class for entity linking strategies."""
+    """Abstract base class for Entity Linking/Normalization strategies."""
 
     @abstractmethod
-    def link(self, text: str, label: str) -> Dict[str, Any]:
+    def link(self, span: ExtractedSpan, context: str) -> Dict[str, Any]:
         """
-        Link an extracted entity to a concept in the codex.
+        Link an extracted span to a concept in the Codex.
+
+        Args:
+            span (ExtractedSpan): The entity span extracted from the text.
+            context (str): The full context text (used for disambiguation).
+
+        Returns:
+            Dict[str, Any]: A dictionary containing:
+                - concept_id (str)
+                - concept_name (str)
+                - link_confidence (float)
         """
         pass  # pragma: no cover
