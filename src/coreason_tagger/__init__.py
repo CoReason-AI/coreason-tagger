@@ -10,10 +10,10 @@
 
 from coreason_tagger.assertion_detector import RegexBasedAssertionDetector
 from coreason_tagger.interfaces import BaseAssertionDetector, BaseLinker, BaseNERExtractor
-from coreason_tagger.ner import GLiNERExtractor
 from coreason_tagger.schema import AssertionStatus, ExtractedSpan, TaggedEntity
 
 __all__ = [
+    "BaseNERExtractor",
     "BaseAssertionDetector",
     "BaseNERExtractor",
     "BaseLinker",

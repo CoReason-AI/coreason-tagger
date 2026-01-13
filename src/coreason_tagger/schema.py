@@ -14,15 +14,11 @@ class AssertionStatus(str, Enum):
 
 
 class ExtractedSpan(BaseModel):
-    """
-    Represents a raw entity extracted by the NER model.
-    """
-
-    text: str = Field(..., description="The extracted text.")
-    label: str = Field(..., description="The predicted label.")
-    start: int = Field(..., description="Start character index.")
-    end: int = Field(..., description="End character index.")
-    score: float = Field(..., description="Confidence score.")
+    text: str = Field(..., min_length=1)
+    label: str = Field(..., min_length=1)
+    start: int = Field(..., ge=0)
+    end: int = Field(..., gt=0)
+    score: float = Field(..., ge=0.0, le=1.0)
 
 
 class TaggedEntity(BaseModel):
