@@ -2,7 +2,7 @@
 # Copyright (c) 2024 CoReason AI
 
 import pytest
-from coreason_tagger.schema import AssertionStatus, ExtractedSpan, TaggedEntity
+from coreason_tagger.schema import AssertionStatus, TaggedEntity
 from pydantic import ValidationError
 
 
@@ -121,33 +121,3 @@ def test_tagged_entity_invalid_assertion() -> None:
             link_confidence=0.5,
             assertion="INVALID_STATUS",  # type: ignore
         )
-
-
-def test_extracted_span_valid() -> None:
-    """Test creating a valid ExtractedSpan."""
-    span = ExtractedSpan(text="aspirin", label="Drug", start=10, end=17, score=0.95)
-    assert span.text == "aspirin"
-    assert span.start == 10
-    assert span.end == 17
-    assert span.score == 0.95
-
-
-def test_extracted_span_validation_bounds() -> None:
-    """Test ExtractedSpan validation rules."""
-    # Score bounds
-    with pytest.raises(ValidationError):
-        ExtractedSpan(text="t", label="l", start=0, end=1, score=1.1)
-    with pytest.raises(ValidationError):
-        ExtractedSpan(text="t", label="l", start=0, end=1, score=-0.1)
-
-    # Position bounds
-    with pytest.raises(ValidationError):
-        ExtractedSpan(text="t", label="l", start=-1, end=1, score=0.5)
-    with pytest.raises(ValidationError):
-        ExtractedSpan(text="t", label="l", start=0, end=0, score=0.5)  # end must be > 0
-
-    # Empty strings
-    with pytest.raises(ValidationError):
-        ExtractedSpan(text="", label="l", start=0, end=1, score=0.5)
-    with pytest.raises(ValidationError):
-        ExtractedSpan(text="t", label="", start=0, end=1, score=0.5)

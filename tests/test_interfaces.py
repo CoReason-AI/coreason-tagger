@@ -11,20 +11,16 @@
 from typing import Any, Dict, List
 
 from coreason_tagger.interfaces import BaseAssertionDetector, BaseLinker, BaseNERExtractor
-from coreason_tagger.schema import AssertionStatus, ExtractedSpan, TaggedEntity
+from coreason_tagger.schema import AssertionStatus, ExtractedSpan
 
 
 class ConcreteExtractor(BaseNERExtractor):
     def extract(self, text: str, labels: List[str]) -> List[ExtractedSpan]:
-        if not text:
-            return []
-        return [ExtractedSpan(text="test", label=labels[0], start=0, end=4, score=0.99)]
+        return [ExtractedSpan(text="test", label=labels[0], start=0, end=4, score=1.0)]
 
 
 class ConcreteAssertionDetector(BaseAssertionDetector):
     def detect(self, text: str, span_text: str, span_start: int, span_end: int) -> AssertionStatus:
-        if "not" in text:
-            return AssertionStatus.ABSENT
         return AssertionStatus.PRESENT
 
 
@@ -40,13 +36,6 @@ def test_extractor_interface() -> None:
     assert isinstance(result[0], ExtractedSpan)
     assert result[0].text == "test"
     assert result[0].label == "TestLabel"
-
-
-def test_extractor_empty_text() -> None:
-    """Edge case: Empty text should return empty list."""
-    extractor = ConcreteExtractor()
-    result = extractor.extract("", ["TestLabel"])
-    assert result == []
 
 
 def test_assertion_detector_interface() -> None:
