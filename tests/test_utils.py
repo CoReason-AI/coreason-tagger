@@ -9,6 +9,9 @@
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
 
+import importlib
+from unittest.mock import patch
+
 from coreason_tagger.utils.logger import logger
 
 
