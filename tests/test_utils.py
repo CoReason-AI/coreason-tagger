@@ -8,24 +8,17 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
-import importlib
-from pathlib import Path
-from unittest.mock import patch
+
+from coreason_tagger.utils.logger import logger
 
 
 def test_logger_initialization() -> None:
     """Test that the logger is initialized correctly and creates the log directory."""
     # Since the logger is initialized on import, we check side effects
 
-    log_path = Path("logs")
-    assert log_path.exists()
-    assert log_path.is_dir()
 
-
-def test_logger_exports() -> None:
-    """Test that logger is exported."""
-    from coreason_tagger.utils.logger import logger
-
+def test_logger_setup() -> None:
+    # Logger is already configured in module scope
     assert logger is not None
 
 

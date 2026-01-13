@@ -15,7 +15,9 @@ from coreason_tagger.schema import AssertionStatus, ExtractedSpan, TaggedEntity
 __all__ = [
     "BaseNERExtractor",
     "BaseAssertionDetector",
+    "BaseNERExtractor",
     "BaseLinker",
+    "GLiNERExtractor",
     "RegexBasedAssertionDetector",
     "AssertionStatus",
     "TaggedEntity",
