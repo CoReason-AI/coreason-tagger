@@ -18,6 +18,8 @@ __all__ = ["logger"]
 # Remove default handler
 logger.remove()
 
+__all__ = ["logger"]
+
 # Sink 1: Stdout (Human-readable)
 logger.add(
     sys.stderr,
@@ -31,7 +33,7 @@ logger.add(
 
 # Ensure logs directory exists
 log_path = Path("logs")
-if not log_path.exists():
+if not log_path.exists():  # pragma: no cover
     log_path.mkdir(parents=True, exist_ok=True)
 
 # Sink 2: File (JSON, Rotation, Retention)
