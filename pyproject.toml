@@ -11,6 +11,8 @@ packages = [{include = "coreason_tagger", from = "src"}]
 python = ">=3.12, <3.13"
 loguru = "^0.7.2"
 pydantic = "^2.12.5"
+gliner = "^0.2.24"
+sentence-transformers = "^5.2.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2.2"

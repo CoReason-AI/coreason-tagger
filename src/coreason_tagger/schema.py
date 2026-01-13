@@ -13,6 +13,14 @@ class AssertionStatus(str, Enum):
     FAMILY = "FAMILY_HISTORY"
 
 
+class ExtractedSpan(BaseModel):
+    text: str = Field(..., min_length=1)
+    label: str = Field(..., min_length=1)
+    start: int = Field(..., ge=0)
+    end: int = Field(..., gt=0)
+    score: float = Field(..., ge=0.0, le=1.0)
+
+
 class TaggedEntity(BaseModel):
     span_text: str = Field(..., min_length=1)
     label: str = Field(..., min_length=1)
