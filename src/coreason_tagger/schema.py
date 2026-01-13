@@ -13,6 +13,18 @@ class AssertionStatus(str, Enum):
     FAMILY = "FAMILY_HISTORY"
 
 
+class ExtractedSpan(BaseModel):
+    """
+    Represents a raw entity extracted by the NER model.
+    """
+
+    text: str = Field(..., description="The extracted text.")
+    label: str = Field(..., description="The predicted label.")
+    start: int = Field(..., description="Start character index.")
+    end: int = Field(..., description="End character index.")
+    score: float = Field(..., description="Confidence score.")
+
+
 class TaggedEntity(BaseModel):
     span_text: str = Field(..., min_length=1)
     label: str = Field(..., min_length=1)

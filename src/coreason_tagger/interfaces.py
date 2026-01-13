@@ -9,8 +9,9 @@
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
 from abc import ABC, abstractmethod
+from typing import Any, Dict, List
 
-from coreason_tagger.schema import AssertionStatus
+from coreason_tagger.schema import AssertionStatus, ExtractedSpan
 
 
 class BaseAssertionDetector(ABC):
@@ -29,5 +30,34 @@ class BaseAssertionDetector(ABC):
 
         Returns:
             AssertionStatus: The detected status (e.g., PRESENT, ABSENT).
+        """
+        pass  # pragma: no cover
+
+
+class BaseNERExtractor(ABC):
+    """Abstract base class for NER extraction strategies."""
+
+    @abstractmethod
+    def extract(self, text: str, labels: List[str]) -> List[ExtractedSpan]:
+        """
+        Extract entities from text using the provided labels.
+
+        Args:
+            text (str): The input text to process.
+            labels (List[str]): A list of entity types to detect (e.g., ["Symptom", "Drug"]).
+
+        Returns:
+            List[ExtractedSpan]: A list of detected entity spans.
+        """
+        pass  # pragma: no cover
+
+
+class BaseLinker(ABC):
+    """Abstract base class for entity linking strategies."""
+
+    @abstractmethod
+    def link(self, text: str, label: str) -> Dict[str, Any]:
+        """
+        Link an extracted entity to a concept in the codex.
         """
         pass  # pragma: no cover
