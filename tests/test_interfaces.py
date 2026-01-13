@@ -25,7 +25,7 @@ class ConcreteAssertionDetector(BaseAssertionDetector):
 
 
 class ConcreteLinker(BaseLinker):
-    def link(self, text: str, label: str) -> Dict[str, Any]:
+    def link(self, entity: ExtractedSpan) -> Dict[str, Any]:
         return {"concept_id": "1", "concept_name": "Test", "confidence": 1.0}
 
 
@@ -46,5 +46,6 @@ def test_assertion_detector_interface() -> None:
 
 def test_linker_interface() -> None:
     linker = ConcreteLinker()
-    result = linker.link("sample", "Label")
+    span = ExtractedSpan(text="sample", label="Label", start=0, end=6, score=1.0)
+    result = linker.link(span)
     assert result == {"concept_id": "1", "concept_name": "Test", "confidence": 1.0}

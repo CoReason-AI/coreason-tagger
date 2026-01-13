@@ -56,7 +56,7 @@ class BaseLinker(ABC):
     """Abstract base class for entity linking strategies."""
 
     @abstractmethod
-    def link(self, text: str, label: str) -> Dict[str, Any]:
+    def link(self, entity: ExtractedSpan) -> Dict[str, Any]:
         """
         Link an extracted entity to a concept in the codex.
         """
