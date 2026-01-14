@@ -74,11 +74,16 @@ class CoreasonTagger:
             if not link_result:
                 continue
 
+            concept_id = link_result.get("concept_id")
+            if not concept_id:
+                # Malformed result or missing ID -> Useless
+                continue
+
             # Construct the final entity
             entity = TaggedEntity(
                 span_text=span.text,
                 label=span.label,
-                concept_id=link_result.get("concept_id", ""),
+                concept_id=concept_id,
                 concept_name=link_result.get("concept_name", ""),
                 link_confidence=link_result.get("link_confidence", 0.0),
                 assertion=assertion_status,

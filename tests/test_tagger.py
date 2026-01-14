@@ -138,3 +138,148 @@ def test_multiple_entities(
     assert results[1].span_text == "cough"
     assert results[1].assertion == AssertionStatus.PRESENT
     assert results[1].concept_id == "C2"
+
+
+def test_user_story_family_history(
+    tagger: CoreasonTagger, mock_ner: MagicMock, mock_assertion: MagicMock, mock_linker: MagicMock
+) -> None:
+    """
+    Test User Story A: "Patient's mother died of breast cancer."
+    Expectation: Assertion sets FAMILY_HISTORY, Linker maps to Breast Cancer.
+    """
+    text = "Patient's mother died of breast cancer."
+    # 1. NER detects
+    span = ExtractedSpan(text="breast cancer", label="Diagnosis", start=24, end=37, score=0.99)
+    mock_ner.extract.return_value = [span]
+
+    # 2. Assertion detects "mother" in path
+    mock_assertion.detect.return_value = AssertionStatus.FAMILY
+
+    # 3. Linker maps
+    mock_linker.link.return_value = {
+        "concept_id": "SNOMED:254837009",
+        "concept_name": "Malignant neoplasm of breast",
+        "link_confidence": 0.98,
+    }
+
+    results = tagger.tag(text, ["Diagnosis"])
+
+    assert len(results) == 1
+    entity = results[0]
+    assert entity.span_text == "breast cancer"
+    assert entity.assertion == AssertionStatus.FAMILY
+    assert entity.concept_id == "SNOMED:254837009"
+
+
+def test_user_story_ambiguous_drug(
+    tagger: CoreasonTagger, mock_ner: MagicMock, mock_assertion: MagicMock, mock_linker: MagicMock
+) -> None:
+    """
+    Test User Story B: "Administered 50mg of Lasix."
+    Expectation: Linker maps "Lasix" (Brand) to "Furosemide" (Generic).
+    """
+    text = "Administered 50mg of Lasix."
+    # 1. NER detects
+    span = ExtractedSpan(text="Lasix", label="Drug", start=21, end=26, score=0.99)
+    mock_ner.extract.return_value = [span]
+
+    # 2. Assertion detects PRESENT
+    mock_assertion.detect.return_value = AssertionStatus.PRESENT
+
+    # 3. Linker maps brand to generic ID
+    mock_linker.link.return_value = {
+        "concept_id": "RxNorm:4603",
+        "concept_name": "Furosemide",
+        "link_confidence": 0.95,
+    }
+
+    results = tagger.tag(text, ["Drug"])
+
+    assert len(results) == 1
+    entity = results[0]
+    assert entity.span_text == "Lasix"
+    assert entity.concept_id == "RxNorm:4603"
+    assert entity.concept_name == "Furosemide"
+
+
+def test_mixed_linking_success(
+    tagger: CoreasonTagger, mock_ner: MagicMock, mock_assertion: MagicMock, mock_linker: MagicMock
+) -> None:
+    """
+    Test a batch where some entities link and others fail.
+    Scenario: [Success, Fail, Success]
+    """
+    text = "A, B, C"
+    spans = [
+        ExtractedSpan(text="A", label="Test", start=0, end=1, score=1.0),
+        ExtractedSpan(text="B", label="Test", start=3, end=4, score=1.0),
+        ExtractedSpan(text="C", label="Test", start=6, end=7, score=1.0),
+    ]
+    mock_ner.extract.return_value = spans
+    mock_assertion.detect.return_value = AssertionStatus.PRESENT
+
+    # Linker side effects: Dict, Empty, Dict
+    mock_linker.link.side_effect = [
+        {"concept_id": "ID_A", "concept_name": "A", "link_confidence": 1.0},
+        {},  # Failure
+        {"concept_id": "ID_C", "concept_name": "C", "link_confidence": 1.0},
+    ]
+
+    results = tagger.tag(text, ["Test"])
+
+    assert len(results) == 2
+    assert results[0].span_text == "A"
+    assert results[1].span_text == "C"
+
+
+def test_identical_entity_different_contexts(
+    tagger: CoreasonTagger, mock_ner: MagicMock, mock_assertion: MagicMock, mock_linker: MagicMock
+) -> None:
+    """
+    Test same entity string appearing twice with different contexts/assertions.
+    "Mother has diabetes, but patient denies diabetes."
+    """
+    text = "Mother has diabetes, but patient denies diabetes."
+    # NER finds two "diabetes"
+    span1 = ExtractedSpan(text="diabetes", label="Condition", start=11, end=19, score=0.99)
+    span2 = ExtractedSpan(text="diabetes", label="Condition", start=40, end=48, score=0.99)
+    mock_ner.extract.return_value = [span1, span2]
+
+    # Assertion logic: First is FAMILY, second is ABSENT
+    mock_assertion.detect.side_effect = [AssertionStatus.FAMILY, AssertionStatus.ABSENT]
+
+    # Linker returns same ID for both
+    mock_linker.link.return_value = {
+        "concept_id": "C_DIABETES",
+        "concept_name": "Diabetes Mellitus",
+        "link_confidence": 1.0,
+    }
+
+    results = tagger.tag(text, ["Condition"])
+
+    assert len(results) == 2
+    assert results[0].span_text == "diabetes"
+    assert results[0].assertion == AssertionStatus.FAMILY
+    assert results[1].span_text == "diabetes"
+    assert results[1].assertion == AssertionStatus.ABSENT
+
+
+def test_malformed_linker_result(
+    tagger: CoreasonTagger, mock_ner: MagicMock, mock_assertion: MagicMock, mock_linker: MagicMock
+) -> None:
+    """
+    Test that if linker returns a dict without 'concept_id', it is treated as a failure.
+    (Prevents validation error in TaggedEntity construction).
+    """
+    text = "Something weird."
+    span = ExtractedSpan(text="weird", label="Thing", start=10, end=15, score=0.5)
+    mock_ner.extract.return_value = [span]
+    mock_assertion.detect.return_value = AssertionStatus.PRESENT
+
+    # Linker returns malformed dict
+    mock_linker.link.return_value = {"concept_name": "Only Name No ID", "link_confidence": 0.5}
+
+    results = tagger.tag(text, ["Thing"])
+
+    # Should be skipped
+    assert results == []
