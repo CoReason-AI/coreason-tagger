@@ -17,7 +17,7 @@ from coreason_tagger.schema import ExtractedSpan
 
 
 # Mock the SentenceTransformer to avoid downloading/loading the model during tests
-@pytest.fixture  # type: ignore
+@pytest.fixture
 def mock_sentence_transformer() -> Generator[MagicMock, None, None]:
     with patch("coreason_tagger.linker.SentenceTransformer") as MockClass:
         mock_instance = MockClass.return_value
@@ -35,7 +35,7 @@ def mock_sentence_transformer() -> Generator[MagicMock, None, None]:
         yield MockClass
 
 
-@pytest.fixture  # type: ignore
+@pytest.fixture
 def mock_codex() -> MagicMock:
     codex = MagicMock()
     # default behavior

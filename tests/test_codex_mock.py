@@ -13,7 +13,7 @@ from coreason_tagger.codex_mock import MockCoreasonCodex
 
 
 class TestMockCoreasonCodex:
-    @pytest.fixture  # type: ignore
+    @pytest.fixture
     def codex(self) -> MockCoreasonCodex:
         return MockCoreasonCodex()
 
