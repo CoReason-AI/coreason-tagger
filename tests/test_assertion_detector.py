@@ -13,7 +13,7 @@ from coreason_tagger.assertion_detector import RegexBasedAssertionDetector
 from coreason_tagger.schema import AssertionStatus
 
 
-@pytest.fixture  # type: ignore
+@pytest.fixture
 def detector() -> RegexBasedAssertionDetector:
     return RegexBasedAssertionDetector()
 

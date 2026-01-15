@@ -8,6 +8,7 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
+import os
 import sys
 from pathlib import Path
 
@@ -22,6 +23,10 @@ def setup_logger(log_dir: str = "logs") -> None:
     """
     # Remove default handler
     logger.remove()
+
+    # Determine environment
+    app_env = os.getenv("APP_ENV", "development").lower()
+    should_enqueue = app_env != "testing"
 
     # Sink 1: Stdout (Human-readable)
     logger.add(
@@ -47,7 +52,7 @@ def setup_logger(log_dir: str = "logs") -> None:
         rotation="500 MB",
         retention="10 days",
         serialize=True,
-        enqueue=True,
+        enqueue=should_enqueue,
         level="INFO",
     )
 
