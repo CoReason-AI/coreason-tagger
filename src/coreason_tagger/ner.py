@@ -62,6 +62,7 @@ class GLiNERExtractor(BaseNERExtractor):
                 start=entity["start"],
                 end=entity["end"],
                 score=entity["score"],
+                context=text,
             )
             extracted_spans.append(span)
 

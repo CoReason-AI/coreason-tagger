@@ -39,26 +39,29 @@ class VectorLinker(BaseLinker):
         # Note: In production, this should be lazy-loaded or managed by a model registry.
         self.model = SentenceTransformer(model_name)
 
-        # Create an instance-level cache for linking mentions.
-        # This prevents the B019 memory leak issue associated with @lru_cache on methods,
-        # ensuring the cache is garbage collected when the instance is destroyed.
-        self._cached_link_mention = functools.lru_cache(maxsize=1024)(self._link_mention_impl)
+        # Create an instance-level cache for candidate generation.
+        # We cache only the retrieval step, not the re-ranking step,
+        # because re-ranking is now context-dependent.
+        self._cached_get_candidates = functools.lru_cache(maxsize=1024)(self._get_candidates_impl)
 
-    def _link_mention_impl(self, text: str) -> Dict[str, Any]:
+    def _get_candidates_impl(self, text: str) -> List[Dict[str, Any]]:
         """
-        Implementation of the linking logic.
-        This method is wrapped by the LRU cache in __init__.
+        Implementation of candidate generation using Codex.
         """
         # Step 1: Candidate Generation (using Codex's search)
-        # In a real scenario, we might pass the label to filter candidates (e.g., only Drugs).
         candidates: List[Dict[str, Any]] = self.codex_client.search(text, top_k=10)
+        return candidates
 
+    def _rerank(self, query_text: str, candidates: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Perform semantic re-ranking using the Bi-Encoder.
+        """
         if not candidates:
             return {}
 
         # Step 2: Semantic Re-ranking
-        # Encode the query (mention)
-        query_embedding = self.model.encode(text, convert_to_tensor=True)
+        # Encode the query (mention OR context)
+        query_embedding = self.model.encode(query_text, convert_to_tensor=True)
 
         # Encode the candidates (definitions/names)
         # We use the 'concept_name' for encoding.
@@ -100,4 +103,17 @@ class VectorLinker(BaseLinker):
         if not text:
             return {}
 
-        return self._cached_link_mention(text)
+        # Step 1: Get Candidates (Cached based on mention text)
+        candidates = self._cached_get_candidates(text)
+
+        if not candidates:
+            return {}
+
+        # Step 2: Semantic Re-ranking (Context-Aware)
+        # If context is available, we use it for the query embedding to disambiguate.
+        # Otherwise, fallback to the mention text.
+        # Note: Using the full context helps match the "sense" of the word in the sentence
+        # to the concept name/definition.
+        query_text = entity.context if entity.context else text
+
+        return self._rerank(query_text, candidates)
