@@ -74,11 +74,10 @@ def test_mixed_meanings_in_same_sentence(mock_sentence_transformer_complex: Magi
     """
     Test that the linker can disambiguate two identical mentions in the same document
     if it correctly uses windowing/local context.
-
-    We use a longer text to ensure the 50-char window effectively separates the contexts.
     """
     codex = MockCoreasonCodex()
-    linker = VectorLinker(codex_client=codex)
+    # Explicitly set window size to 50 to match previous behavior/tests
+    linker = VectorLinker(codex_client=codex, window_size=50)
 
     # Text length ~140 chars.
     # "caught a cold" is early. "feeling cold" is late.
@@ -105,3 +104,28 @@ def test_mixed_meanings_in_same_sentence(mock_sentence_transformer_complex: Magi
 
     assert result1["concept_name"] == "Common Cold"
     assert result2["concept_name"] == "Chills"
+
+
+def test_configurable_window_size(mock_sentence_transformer_complex: MagicMock) -> None:
+    """
+    Test that the window size is configurable and affects the output.
+    If we set a massive window size, it should fail to disambiguate (like the original failure case).
+    """
+    codex = MockCoreasonCodex()
+    # Set window size to 500 (covers the whole text)
+    linker = VectorLinker(codex_client=codex, window_size=500)
+
+    text = "Patient caught a cold and later reported feeling cold."
+
+    # Span 2: "feeling cold"
+    span2 = ExtractedSpan(text="cold", label="Symptom", start=49, end=53, score=0.9, context=text)
+
+    # With massive window, it sees "caught" (infection) and "feeling" (sensation).
+    # Based on our mock logic for mixed signals, it returns [0.5, 0.5, 0.0] or similar ambiguity.
+    # And due to tie-breaking, it likely picks "Common Cold" (first candidate) over "Chills".
+
+    result = linker.link(span2)
+
+    # It should effectively FAIL to identify "Chills" correctly due to context pollution
+    # OR be ambiguous. In this mock setup, it defaults to Common Cold on ties/mixes.
+    assert result["concept_name"] == "Common Cold"

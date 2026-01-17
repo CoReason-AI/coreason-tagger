@@ -9,9 +9,27 @@
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Protocol
 
 from coreason_tagger.schema import AssertionStatus, ExtractedSpan
+
+
+class CodexClient(Protocol):
+    """
+    Protocol defining the interface for the Codex client.
+    """
+
+    def search(self, query: str, top_k: int = 10) -> List[Dict[str, Any]]:
+        """
+        Search for concepts in the codex.
+        """
+        ...
+
+    def get_concept(self, concept_id: str) -> Dict[str, Any]:
+        """
+        Retrieve a specific concept by ID.
+        """
+        ...
 
 
 class BaseAssertionDetector(ABC):

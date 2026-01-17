@@ -13,7 +13,7 @@ from typing import Any, Dict, List
 
 from sentence_transformers import SentenceTransformer, util
 
-from coreason_tagger.interfaces import BaseLinker
+from coreason_tagger.interfaces import BaseLinker, CodexClient
 from coreason_tagger.schema import ExtractedSpan
 
 
@@ -23,18 +23,30 @@ class VectorLinker(BaseLinker):
     Implements the Candidate Generation -> Semantic Re-ranking pipeline.
     """
 
-    def __init__(self, codex_client: Any, model_name: str = "all-MiniLM-L6-v2") -> None:
+    def __init__(
+        self,
+        codex_client: CodexClient,
+        model_name: str = "all-MiniLM-L6-v2",
+        window_size: int = 50,
+        candidate_top_k: int = 10,
+    ) -> None:
         """
         Initialize the Vector Linker.
 
         Args:
-            codex_client: An instance of the codex client (e.g., MockCoreasonCodex).
-                          Must have a `search(query: str, top_k: int)` method.
+            codex_client: An instance of the codex client.
+                          Must strictly implement the CodexClient Protocol.
             model_name (str): The name of the sentence-transformers model to use.
-                              Defaults to "all-MiniLM-L6-v2" (fast and effective).
+                              Defaults to "all-MiniLM-L6-v2".
+            window_size (int): The number of characters to include before and after the entity
+                               when constructing the context window for re-ranking. Defaults to 50.
+            candidate_top_k (int): The number of candidates to retrieve from Codex. Defaults to 10.
         """
         self.codex_client = codex_client
         self.model_name = model_name
+        self.window_size = window_size
+        self.candidate_top_k = candidate_top_k
+
         # Load the model.
         # Note: In production, this should be lazy-loaded or managed by a model registry.
         self.model = SentenceTransformer(model_name)
@@ -49,7 +61,7 @@ class VectorLinker(BaseLinker):
         Implementation of candidate generation using Codex.
         """
         # Step 1: Candidate Generation (using Codex's search)
-        candidates: List[Dict[str, Any]] = self.codex_client.search(text, top_k=10)
+        candidates: List[Dict[str, Any]] = self.codex_client.search(text, top_k=self.candidate_top_k)
         return candidates
 
     def _rerank(self, query_text: str, candidates: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -114,9 +126,9 @@ class VectorLinker(BaseLinker):
         # We apply windowing to focus on the immediate context around the mention.
         query_text = text
         if entity.context:
-            # Windowing strategy: 50 chars before and after (approx sentence size)
-            start_idx = max(0, entity.start - 50)
-            end_idx = min(len(entity.context), entity.end + 50)
+            # Windowing strategy: configurable chars before and after (approx sentence size)
+            start_idx = max(0, entity.start - self.window_size)
+            end_idx = min(len(entity.context), entity.end + self.window_size)
             query_text = entity.context[start_idx:end_idx]
 
         return self._rerank(query_text, candidates)
