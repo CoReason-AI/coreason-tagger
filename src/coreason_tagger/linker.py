@@ -111,9 +111,12 @@ class VectorLinker(BaseLinker):
 
         # Step 2: Semantic Re-ranking (Context-Aware)
         # If context is available, we use it for the query embedding to disambiguate.
-        # Otherwise, fallback to the mention text.
-        # Note: Using the full context helps match the "sense" of the word in the sentence
-        # to the concept name/definition.
-        query_text = entity.context if entity.context else text
+        # We apply windowing to focus on the immediate context around the mention.
+        query_text = text
+        if entity.context:
+            # Windowing strategy: 50 chars before and after (approx sentence size)
+            start_idx = max(0, entity.start - 50)
+            end_idx = min(len(entity.context), entity.end + 50)
+            query_text = entity.context[start_idx:end_idx]
 
         return self._rerank(query_text, candidates)
