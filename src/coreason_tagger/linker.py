@@ -8,6 +8,7 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
+import functools
 from typing import Any, Dict, List
 
 from sentence_transformers import SentenceTransformer, util
@@ -38,26 +39,16 @@ class VectorLinker(BaseLinker):
         # Note: In production, this should be lazy-loaded or managed by a model registry.
         self.model = SentenceTransformer(model_name)
 
-    def link(self, entity: ExtractedSpan) -> Dict[str, Any]:
+        # Create an instance-level cache for linking mentions.
+        # This prevents the B019 memory leak issue associated with @lru_cache on methods,
+        # ensuring the cache is garbage collected when the instance is destroyed.
+        self._cached_link_mention = functools.lru_cache(maxsize=1024)(self._link_mention_impl)
+
+    def _link_mention_impl(self, text: str) -> Dict[str, Any]:
         """
-        Link an extracted entity to a concept in the codex.
-
-        Pipeline:
-        1. Candidate Generation: Query the codex (BM25/Sparse) to get top candidates.
-        2. Semantic Re-ranking: Encode the mention and candidates using the Bi-Encoder
-           and select the best match based on cosine similarity.
-
-        Args:
-            entity (ExtractedSpan): The entity to link.
-
-        Returns:
-            Dict[str, Any]: The linked concept data, including 'concept_id', 'concept_name',
-                            and 'link_confidence'. Returns empty dict if no link found.
+        Implementation of the linking logic.
+        This method is wrapped by the LRU cache in __init__.
         """
-        text = entity.text
-        if not text:
-            return {}
-
         # Step 1: Candidate Generation (using Codex's search)
         # In a real scenario, we might pass the label to filter candidates (e.g., only Drugs).
         candidates: List[Dict[str, Any]] = self.codex_client.search(text, top_k=10)
@@ -88,3 +79,25 @@ class VectorLinker(BaseLinker):
         result["link_confidence"] = best_score
 
         return result
+
+    def link(self, entity: ExtractedSpan) -> Dict[str, Any]:
+        """
+        Link an extracted entity to a concept in the codex.
+
+        Pipeline:
+        1. Candidate Generation: Query the codex (BM25/Sparse) to get top candidates.
+        2. Semantic Re-ranking: Encode the mention and candidates using the Bi-Encoder
+           and select the best match based on cosine similarity.
+
+        Args:
+            entity (ExtractedSpan): The entity to link.
+
+        Returns:
+            Dict[str, Any]: The linked concept data, including 'concept_id', 'concept_name',
+                            and 'link_confidence'. Returns empty dict if no link found.
+        """
+        text = entity.text
+        if not text:
+            return {}
+
+        return self._cached_link_mention(text)
