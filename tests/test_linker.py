@@ -21,15 +21,16 @@ from coreason_tagger.schema import ExtractedSpan
 def mock_sentence_transformer() -> Generator[MagicMock, None, None]:
     with patch("coreason_tagger.linker.SentenceTransformer") as MockClass:
         mock_instance = MockClass.return_value
-        import numpy as np
+        import torch
 
         def side_effect(sentences: Any, convert_to_tensor: bool = False) -> Any:
+            # Always return tensors to match real behavior for cos_sim
             if isinstance(sentences, str):
-                return np.array([0.1, 0.2, 0.3])  # Dummy 3D vector
+                return torch.tensor([0.1, 0.2, 0.3])
             elif isinstance(sentences, list):
-                # Return list of vectors
-                return np.array([[0.1, 0.2, 0.3] for _ in sentences])
-            return np.array([])
+                # Return tensor of shape (len, 3)
+                return torch.tensor([[0.1, 0.2, 0.3] for _ in sentences])
+            return torch.tensor([])
 
         mock_instance.encode.side_effect = side_effect
         yield MockClass
@@ -107,7 +108,7 @@ def test_link_integration_with_mock_codex() -> None:
         mock_instance = MockST.return_value
         import torch
 
-        mock_instance.encode.return_value = "dummy_embedding"
+        mock_instance.encode.return_value = torch.tensor([0.1, 0.2, 0.3])
 
         linker = VectorLinker(codex_client=codex)
 
@@ -197,3 +198,78 @@ def test_link_reordering_logic(mock_sentence_transformer: MagicMock, mock_codex:
         assert result["concept_name"] == "GoodMatch"
         # Verify score is the vector score, not original score
         assert result["link_confidence"] == pytest.approx(0.95)
+
+
+def test_linker_caching_basic(mock_sentence_transformer: MagicMock, mock_codex: MagicMock) -> None:
+    """Verify standard LRU caching behavior for repeated calls."""
+
+    # Setup return values
+    candidates = [{"concept_id": "C1", "concept_name": "Test", "score": 0.5}]
+    mock_codex.search.return_value = candidates
+
+    with patch("coreason_tagger.linker.util.cos_sim") as mock_cos_sim:
+        import torch
+
+        mock_cos_sim.return_value = torch.tensor([[0.9]])
+
+        linker = VectorLinker(codex_client=mock_codex)
+        span = create_span("aspirin")
+
+        # First call
+        linker.link(span)
+        assert mock_codex.search.call_count == 1
+
+        # Second call (same text)
+        linker.link(span)
+        assert mock_codex.search.call_count == 1  # Should still be 1
+
+        # Third call (different text)
+        span2 = create_span("tylenol")
+        linker.link(span2)
+        assert mock_codex.search.call_count == 2
+
+        # Verify cache hits via introspection (implementation detail check)
+        info = linker._cached_link_mention.cache_info()
+        assert info.hits >= 1
+
+
+def test_linker_caching_instance_independence(mock_sentence_transformer: MagicMock, mock_codex: MagicMock) -> None:
+    """Verify that caches are independent per instance."""
+
+    candidates = [{"concept_id": "C1", "concept_name": "Test", "score": 0.5}]
+    mock_codex.search.return_value = candidates
+
+    with patch("coreason_tagger.linker.util.cos_sim") as mock_cos_sim:
+        import torch
+
+        mock_cos_sim.return_value = torch.tensor([[0.9]])
+
+        linker1 = VectorLinker(codex_client=mock_codex)
+        linker2 = VectorLinker(codex_client=mock_codex)
+
+        span = create_span("aspirin")
+
+        # Linker 1 called
+        linker1.link(span)
+        info1 = linker1._cached_link_mention.cache_info()
+        assert info1.hits == 0
+        assert info1.misses == 1
+
+        # Linker 2 called (same text) -> Should be a miss for linker2
+        linker2.link(span)
+        info2 = linker2._cached_link_mention.cache_info()
+        assert info2.hits == 0
+        assert info2.misses == 1
+
+
+def test_linker_caching_empty_bypass(mock_sentence_transformer: MagicMock, mock_codex: MagicMock) -> None:
+    """Verify that empty strings bypass the cache mechanism completely."""
+    linker = VectorLinker(codex_client=mock_codex)
+    span = create_span("")
+
+    linker.link(span)
+
+    # Check cache stats - should be untouched
+    info = linker._cached_link_mention.cache_info()
+    assert info.hits == 0
+    assert info.misses == 0
