@@ -69,6 +69,21 @@ class BaseNERExtractor(ABC):
         """
         pass  # pragma: no cover
 
+    @abstractmethod
+    def extract_batch(self, texts: List[str], labels: List[str]) -> List[List[ExtractedSpan]]:
+        """
+        Extract entities from a batch of texts using the provided labels.
+
+        Args:
+            texts (List[str]): The list of input texts to process.
+            labels (List[str]): A list of entity types to detect.
+
+        Returns:
+            List[List[ExtractedSpan]]: A list of lists, where each inner list contains
+                                       detected entity spans for the corresponding text.
+        """
+        pass  # pragma: no cover
+
 
 class BaseLinker(ABC):
     """Abstract base class for entity linking strategies."""

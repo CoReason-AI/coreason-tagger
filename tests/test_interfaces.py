@@ -18,6 +18,9 @@ class ConcreteExtractor(BaseNERExtractor):
     def extract(self, text: str, labels: List[str]) -> List[ExtractedSpan]:
         return [ExtractedSpan(text="test", label=labels[0], start=0, end=4, score=1.0)]
 
+    def extract_batch(self, texts: List[str], labels: List[str]) -> List[List[ExtractedSpan]]:
+        return [[ExtractedSpan(text="test", label=labels[0], start=0, end=4, score=1.0)] for _ in texts]
+
 
 class ConcreteAssertionDetector(BaseAssertionDetector):
     def detect(self, text: str, span_text: str, span_start: int, span_end: int) -> AssertionStatus:
@@ -36,6 +39,11 @@ def test_extractor_interface() -> None:
     assert isinstance(result[0], ExtractedSpan)
     assert result[0].text == "test"
     assert result[0].label == "TestLabel"
+
+    batch_result = extractor.extract_batch(["sample1", "sample2"], ["TestLabel"])
+    assert len(batch_result) == 2
+    assert len(batch_result[0]) == 1
+    assert batch_result[0][0].text == "test"
 
 
 def test_assertion_detector_interface() -> None:
