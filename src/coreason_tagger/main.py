@@ -66,7 +66,7 @@ def tag(
     except Exception as e:
         logger.exception("Failed to process text")
         typer.secho(f"Error: {e}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
 
 if __name__ == "__main__":
