@@ -67,3 +67,42 @@ class GLiNERExtractor(BaseNERExtractor):
             extracted_spans.append(span)
 
         return extracted_spans
+
+    def extract_batch(self, texts: List[str], labels: List[str]) -> List[List[ExtractedSpan]]:
+        """
+        Extract entities from a batch of texts using the provided labels.
+
+        Args:
+            texts (List[str]): The list of input texts to process.
+            labels (List[str]): A list of entity types to detect.
+
+        Returns:
+            List[List[ExtractedSpan]]: A list of lists, where each inner list contains
+                                       detected entity spans for the corresponding text.
+        """
+        if not texts or not labels:
+            return [[] for _ in texts]
+
+        # Use batch_predict_entities if available, otherwise fallback to loop?
+        # We verified batch_predict_entities exists on the model instance.
+        # batch_predict_entities returns a list of lists of dicts.
+        batch_raw_entities = self.model.batch_predict_entities(texts, labels)
+
+        batch_extracted_spans: List[List[ExtractedSpan]] = []
+
+        # Iterate over both the original texts (for context) and the results
+        for text, raw_entities in zip(texts, batch_raw_entities, strict=False):
+            extracted_spans: List[ExtractedSpan] = []
+            for entity in raw_entities:
+                span = ExtractedSpan(
+                    text=entity["text"],
+                    label=entity["label"],
+                    start=entity["start"],
+                    end=entity["end"],
+                    score=entity["score"],
+                    context=text,
+                )
+                extracted_spans.append(span)
+            batch_extracted_spans.append(extracted_spans)
+
+        return batch_extracted_spans
