@@ -13,6 +13,8 @@ from coreason_tagger.interfaces import BaseAssertionDetector, BaseLinker, BaseNE
 from coreason_tagger.ner import GLiNERExtractor
 from coreason_tagger.schema import AssertionStatus, ExtractedSpan, TaggedEntity
 
+__version__ = "0.1.0"
+
 __all__ = [
     "BaseAssertionDetector",
     "BaseNERExtractor",
@@ -22,4 +24,5 @@ __all__ = [
     "AssertionStatus",
     "TaggedEntity",
     "ExtractedSpan",
+    "__version__",
 ]
