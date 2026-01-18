@@ -8,10 +8,11 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
-from typing import Any
+from typing import Any, Optional
 
 from gliner import GLiNER
 
+from coreason_tagger.config import settings
 from coreason_tagger.interfaces import BaseNERExtractor
 from coreason_tagger.schema import ExtractedSpan
 from coreason_tagger.utils.logger import logger
@@ -23,20 +24,18 @@ class GLiNERExtractor(BaseNERExtractor):
     Wraps the underlying model to provide a clean interface for extracting entities.
     """
 
-    def __init__(self, model_name: str = "urchade/gliner_small-v2.1") -> None:
+    def __init__(self, model_name: Optional[str] = None) -> None:
         """
         Initialize the GLiNER extractor.
 
         Args:
-            model_name (str): The name of the GLiNER model to load.
-                             Defaults to "urchade/gliner_small-v2.1" (lightweight).
+            model_name (str, optional): The name of the GLiNER model to load.
+                                        If None, uses the value from settings.NER_MODEL_NAME.
         """
-        self.model_name = model_name
-        logger.info(f"Initializing GLiNERExtractor with model: {model_name}")
+        self.model_name = model_name or settings.NER_MODEL_NAME
+        logger.info(f"Initializing GLiNERExtractor with model: {self.model_name}")
         # Load the model. Note: This might download weights on first run.
-        # In a real production setup, we might want to lazy-load or use a singleton pattern,
-        # but for this atomic unit, strict encapsulation is preferred.
-        self.model = GLiNER.from_pretrained(model_name)
+        self.model = GLiNER.from_pretrained(self.model_name)
 
     def _build_span(self, entity: dict[str, Any], context: str) -> ExtractedSpan:
         """

@@ -8,11 +8,12 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
-import os
 import sys
 from pathlib import Path
 
 from loguru import logger
+
+from coreason_tagger.config import settings
 
 __all__ = ["logger", "setup_logger"]
 
@@ -25,13 +26,13 @@ def setup_logger(log_dir: str = "logs") -> None:
     logger.remove()
 
     # Determine environment
-    app_env = os.getenv("APP_ENV", "development").lower()
+    app_env = settings.APP_ENV.lower()
     should_enqueue = app_env != "testing"
 
     # Sink 1: Stdout (Human-readable)
     logger.add(
         sys.stderr,
-        level="INFO",
+        level=settings.LOG_LEVEL,
         format=(
             "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
             "<level>{level: <8}</level> | "
@@ -53,7 +54,7 @@ def setup_logger(log_dir: str = "logs") -> None:
         retention="10 days",
         serialize=True,
         enqueue=should_enqueue,
-        level="INFO",
+        level=settings.LOG_LEVEL,
     )
 
 
