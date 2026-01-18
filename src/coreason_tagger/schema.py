@@ -23,6 +23,7 @@ class ExtractedSpan(BaseModel):
     start: int = Field(..., description="Start character index.")
     end: int = Field(..., description="End character index.")
     score: float = Field(..., description="Confidence score.")
+    context: str = Field(default="", description="The surrounding context text.")
 
 
 class TaggedEntity(BaseModel):

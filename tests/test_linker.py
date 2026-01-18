@@ -229,7 +229,7 @@ def test_linker_caching_basic(mock_sentence_transformer: MagicMock, mock_codex: 
         assert mock_codex.search.call_count == 2
 
         # Verify cache hits via introspection (implementation detail check)
-        info = linker._cached_link_mention.cache_info()
+        info = linker._cached_get_candidates.cache_info()
         assert info.hits >= 1
 
 
@@ -251,13 +251,13 @@ def test_linker_caching_instance_independence(mock_sentence_transformer: MagicMo
 
         # Linker 1 called
         linker1.link(span)
-        info1 = linker1._cached_link_mention.cache_info()
+        info1 = linker1._cached_get_candidates.cache_info()
         assert info1.hits == 0
         assert info1.misses == 1
 
         # Linker 2 called (same text) -> Should be a miss for linker2
         linker2.link(span)
-        info2 = linker2._cached_link_mention.cache_info()
+        info2 = linker2._cached_get_candidates.cache_info()
         assert info2.hits == 0
         assert info2.misses == 1
 
@@ -270,6 +270,13 @@ def test_linker_caching_empty_bypass(mock_sentence_transformer: MagicMock, mock_
     linker.link(span)
 
     # Check cache stats - should be untouched
-    info = linker._cached_link_mention.cache_info()
+    info = linker._cached_get_candidates.cache_info()
     assert info.hits == 0
     assert info.misses == 0
+
+
+def test_rerank_empty_candidates(mock_sentence_transformer: MagicMock, mock_codex: MagicMock) -> None:
+    """Test _rerank directly with empty candidates to ensure defensive code coverage."""
+    linker = VectorLinker(codex_client=mock_codex)
+    result = linker._rerank("query", [])
+    assert result == {}
