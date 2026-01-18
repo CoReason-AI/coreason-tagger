@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     Application configuration settings.
     Values can be overridden by environment variables (e.g., APP_ENV=production).
     """
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
     # Core
