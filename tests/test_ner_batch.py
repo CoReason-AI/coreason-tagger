@@ -87,3 +87,88 @@ def test_gliner_extract_batch_order_preservation(mock_gliner_model: MagicMock) -
     assert results[0][0].text == "One"
     assert results[1] == []
     assert results[2][0].text == "Three"
+
+
+def test_gliner_extract_batch_duplicate_inputs(mock_gliner_model: MagicMock) -> None:
+    """Test batch extraction with duplicate input texts to ensure 1:1 mapping."""
+    extractor = GLiNERExtractor()
+    texts = ["Dup", "Dup"]
+    labels = ["Label"]
+
+    # Simulating model finding entities independently for each call
+    mock_gliner_model.batch_predict_entities.return_value = [
+        [{"text": "Dup", "label": "Label", "start": 0, "end": 3, "score": 0.95}],
+        [{"text": "Dup", "label": "Label", "start": 0, "end": 3, "score": 0.95}],
+    ]
+
+    results = extractor.extract_batch(texts, labels)
+
+    assert len(results) == 2
+    # Verify both have results
+    assert len(results[0]) == 1
+    assert len(results[1]) == 1
+    # Verify strict order/context mapping
+    assert results[0][0].context == "Dup"
+    assert results[1][0].context == "Dup"
+    # Ensure they are distinct objects
+    assert results[0][0] is not results[1][0]
+
+
+def test_gliner_extract_batch_complex_mix(mock_gliner_model: MagicMock) -> None:
+    """Test a mix of valid texts, empty strings, and special characters."""
+    extractor = GLiNERExtractor()
+    texts = ["Normal text", "", "Special: @#$%", "Multiple types"]
+    labels = ["TypeA", "TypeB"]
+
+    mock_gliner_model.batch_predict_entities.return_value = [
+        [{"text": "Normal", "label": "TypeA", "start": 0, "end": 6, "score": 0.9}],
+        [],  # Empty input -> likely empty output
+        [{"text": "@#$%", "label": "TypeB", "start": 9, "end": 13, "score": 0.8}],
+        [
+            {"text": "Multiple", "label": "TypeA", "start": 0, "end": 8, "score": 0.9},
+            {"text": "types", "label": "TypeB", "start": 9, "end": 14, "score": 0.85},
+        ],
+    ]
+
+    results = extractor.extract_batch(texts, labels)
+
+    assert len(results) == 4
+    # 1. Normal
+    assert len(results[0]) == 1
+    assert results[0][0].text == "Normal"
+    # 2. Empty string input
+    assert len(results[1]) == 0
+    # 3. Special chars
+    assert len(results[2]) == 1
+    assert results[2][0].text == "@#$%"
+    # 4. Multiple entities
+    assert len(results[3]) == 2
+    assert results[3][0].label == "TypeA"
+    assert results[3][1].label == "TypeB"
+
+
+def test_gliner_extract_batch_overlapping_spans(mock_gliner_model: MagicMock) -> None:
+    """Test that overlapping spans (nested entities) are preserved."""
+    extractor = GLiNERExtractor()
+    texts = ["Patient has lung cancer."]
+    labels = ["Condition", "BodyPart"]
+
+    # Model returns "lung cancer" (Condition) and "lung" (BodyPart)
+    mock_gliner_model.batch_predict_entities.return_value = [
+        [
+            {"text": "lung cancer", "label": "Condition", "start": 12, "end": 23, "score": 0.95},
+            {"text": "lung", "label": "BodyPart", "start": 12, "end": 16, "score": 0.85},
+        ]
+    ]
+
+    results = extractor.extract_batch(texts, labels)
+
+    assert len(results) == 1
+    assert len(results[0]) == 2
+    # Verify both are present
+    labels_found = {span.label for span in results[0]}
+    texts_found = {span.text for span in results[0]}
+    assert "Condition" in labels_found
+    assert "BodyPart" in labels_found
+    assert "lung cancer" in texts_found
+    assert "lung" in texts_found
