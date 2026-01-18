@@ -283,3 +283,119 @@ def test_malformed_linker_result(
 
     # Should be skipped
     assert results == []
+
+
+# --- Batch Processing Tests ---
+
+
+def test_tag_batch_happy_path(
+    tagger: CoreasonTagger, mock_ner: MagicMock, mock_assertion: MagicMock, mock_linker: MagicMock
+) -> None:
+    """Test standard batch flow."""
+    texts = ["Patient has fever.", "No cough detected."]
+    labels = ["Symptom"]
+
+    # Mock NER Batch Return
+    # Text 1: Fever
+    span1 = ExtractedSpan(text="fever", label="Symptom", start=12, end=17, score=0.99)
+    # Text 2: Cough
+    span2 = ExtractedSpan(text="cough", label="Symptom", start=3, end=8, score=0.99)
+    mock_ner.extract_batch.return_value = [[span1], [span2]]
+
+    # Mock Assertion
+    # Call 1 (fever): PRESENT
+    # Call 2 (cough): ABSENT
+    mock_assertion.detect.side_effect = [AssertionStatus.PRESENT, AssertionStatus.ABSENT]
+
+    # Mock Linker
+    mock_linker.link.side_effect = [
+        {"concept_id": "C_FEVER", "concept_name": "Fever", "link_confidence": 0.9},
+        {"concept_id": "C_COUGH", "concept_name": "Cough", "link_confidence": 0.9},
+    ]
+
+    results = tagger.tag_batch(texts, labels)
+
+    assert len(results) == 2
+
+    # Check Result 1
+    assert len(results[0]) == 1
+    ent1 = results[0][0]
+    assert ent1.span_text == "fever"
+    assert ent1.assertion == AssertionStatus.PRESENT
+    assert ent1.concept_id == "C_FEVER"
+
+    # Check Result 2
+    assert len(results[1]) == 1
+    ent2 = results[1][0]
+    assert ent2.span_text == "cough"
+    assert ent2.assertion == AssertionStatus.ABSENT
+    assert ent2.concept_id == "C_COUGH"
+
+    # Verify calls
+    mock_ner.extract_batch.assert_called_once_with(texts, labels)
+
+    # Assertion should be called with correct contexts
+    assert mock_assertion.detect.call_count == 2
+    mock_assertion.detect.assert_any_call(text=texts[0], span_text="fever", span_start=12, span_end=17)
+    mock_assertion.detect.assert_any_call(text=texts[1], span_text="cough", span_start=3, span_end=8)
+
+
+def test_tag_batch_empty_input(tagger: CoreasonTagger, mock_ner: MagicMock) -> None:
+    """Test empty input list."""
+    assert tagger.tag_batch([], ["Label"]) == []
+    mock_ner.extract_batch.assert_not_called()
+
+
+def test_tag_batch_mixed_empty_results(
+    tagger: CoreasonTagger, mock_ner: MagicMock, mock_assertion: MagicMock, mock_linker: MagicMock
+) -> None:
+    """Test batch where some texts have no entities."""
+    texts = ["Has fever.", "Nothing here.", "Has cough."]
+    labels = ["Symptom"]
+
+    span1 = ExtractedSpan(text="fever", label="Symptom", start=4, end=9, score=0.9)
+    span3 = ExtractedSpan(text="cough", label="Symptom", start=4, end=9, score=0.9)
+
+    # Return: [ [span1], [], [span3] ]
+    mock_ner.extract_batch.return_value = [[span1], [], [span3]]
+
+    mock_assertion.detect.return_value = AssertionStatus.PRESENT
+    mock_linker.link.return_value = {
+        "concept_id": "CID", "concept_name": "Name", "link_confidence": 1.0
+    }
+
+    results = tagger.tag_batch(texts, labels)
+
+    assert len(results) == 3
+    assert len(results[0]) == 1
+    assert len(results[1]) == 0
+    assert len(results[2]) == 1
+    assert results[0][0].span_text == "fever"
+    assert results[2][0].span_text == "cough"
+
+
+def test_tag_batch_context_alignment(
+    tagger: CoreasonTagger, mock_ner: MagicMock, mock_assertion: MagicMock, mock_linker: MagicMock
+) -> None:
+    """
+    Verify that the correct context text is passed to assertion detector for each item in batch,
+    even if texts are identical.
+    """
+    texts = ["Context A", "Context B"]
+    spanA = ExtractedSpan(text="Entity", label="L", start=0, end=6, score=1.0)
+    spanB = ExtractedSpan(text="Entity", label="L", start=0, end=6, score=1.0)
+
+    mock_ner.extract_batch.return_value = [[spanA], [spanB]]
+    mock_assertion.detect.return_value = AssertionStatus.PRESENT
+    mock_linker.link.return_value = {"concept_id": "C", "concept_name": "N", "link_confidence": 1.0}
+
+    tagger.tag_batch(texts, ["L"])
+
+    # Check calls to assertion
+    # The first call should use texts[0] ("Context A")
+    # The second call should use texts[1] ("Context B")
+
+    calls = mock_assertion.detect.call_args_list
+    assert len(calls) == 2
+    assert calls[0].kwargs['text'] == "Context A"
+    assert calls[1].kwargs['text'] == "Context B"
