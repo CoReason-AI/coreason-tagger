@@ -8,7 +8,7 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
-from typing import List
+from typing import Any
 
 from gliner import GLiNER
 
@@ -38,12 +38,12 @@ class GLiNERExtractor(BaseNERExtractor):
         # but for this atomic unit, strict encapsulation is preferred.
         self.model = GLiNER.from_pretrained(model_name)
 
-    def _build_span(self, entity: dict, context: str) -> ExtractedSpan:
+    def _build_span(self, entity: dict[str, Any], context: str) -> ExtractedSpan:
         """
         Helper to convert a raw dictionary from GLiNER into an ExtractedSpan.
 
         Args:
-            entity (dict): Raw entity dictionary containing 'text', 'label', 'start', 'end', 'score'.
+            entity (dict[str, Any]): Raw entity dictionary containing 'text', 'label', 'start', 'end', 'score'.
             context (str): The source text.
 
         Returns:
