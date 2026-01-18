@@ -9,10 +9,11 @@
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
 import functools
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from sentence_transformers import SentenceTransformer, util
 
+from coreason_tagger.config import settings
 from coreason_tagger.interfaces import BaseLinker, CodexClient
 from coreason_tagger.schema import ExtractedSpan
 
@@ -26,9 +27,9 @@ class VectorLinker(BaseLinker):
     def __init__(
         self,
         codex_client: CodexClient,
-        model_name: str = "all-MiniLM-L6-v2",
-        window_size: int = 50,
-        candidate_top_k: int = 10,
+        model_name: Optional[str] = None,
+        window_size: Optional[int] = None,
+        candidate_top_k: Optional[int] = None,
     ) -> None:
         """
         Initialize the Vector Linker.
@@ -36,20 +37,22 @@ class VectorLinker(BaseLinker):
         Args:
             codex_client: An instance of the codex client.
                           Must strictly implement the CodexClient Protocol.
-            model_name (str): The name of the sentence-transformers model to use.
-                              Defaults to "all-MiniLM-L6-v2".
-            window_size (int): The number of characters to include before and after the entity
-                               when constructing the context window for re-ranking. Defaults to 50.
-            candidate_top_k (int): The number of candidates to retrieve from Codex. Defaults to 10.
+            model_name (str, optional): The name of the sentence-transformers model to use.
+                                        If None, uses settings.LINKER_MODEL_NAME.
+            window_size (int, optional): The number of characters to include before and after the entity
+                                         when constructing the context window for re-ranking.
+                                         If None, uses settings.LINKER_WINDOW_SIZE.
+            candidate_top_k (int, optional): The number of candidates to retrieve from Codex.
+                                             If None, uses settings.LINKER_CANDIDATE_TOP_K.
         """
         self.codex_client = codex_client
-        self.model_name = model_name
-        self.window_size = window_size
-        self.candidate_top_k = candidate_top_k
+        self.model_name = model_name or settings.LINKER_MODEL_NAME
+        self.window_size = window_size or settings.LINKER_WINDOW_SIZE
+        self.candidate_top_k = candidate_top_k or settings.LINKER_CANDIDATE_TOP_K
 
         # Load the model.
         # Note: In production, this should be lazy-loaded or managed by a model registry.
-        self.model = SentenceTransformer(model_name)
+        self.model = SentenceTransformer(self.model_name)
 
         # Create an instance-level cache for candidate generation.
         # We cache only the retrieval step, not the re-ranking step,
