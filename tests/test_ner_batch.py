@@ -172,3 +172,21 @@ def test_gliner_extract_batch_overlapping_spans(mock_gliner_model: MagicMock) ->
     assert "BodyPart" in labels_found
     assert "lung cancer" in texts_found
     assert "lung" in texts_found
+
+
+def test_gliner_extract_batch_length_mismatch(mock_gliner_model: MagicMock) -> None:
+    """
+    Test that ValueError is raised if the number of results returned by the model
+    does not match the number of input texts (validating strict=True in zip).
+    """
+    extractor = GLiNERExtractor()
+    texts = ["One", "Two"]
+    labels = ["Label"]
+
+    # Model returns only 1 result list instead of 2
+    mock_gliner_model.batch_predict_entities.return_value = [
+        [{"text": "One", "label": "Label", "start": 0, "end": 3, "score": 0.9}],
+    ]
+
+    with pytest.raises(ValueError):
+        extractor.extract_batch(texts, labels)
