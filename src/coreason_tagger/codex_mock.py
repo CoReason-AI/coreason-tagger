@@ -25,6 +25,8 @@ class MockCoreasonCodex:
             # Ambiguous terms for testing contextual linking
             "SNOMED:82272006": {"name": "Common Cold", "embedding": [0.2, 0.2, 0.2]},  # Infection
             "SNOMED:44077006": {"name": "Chills", "embedding": [0.9, 0.9, 0.9]},  # Sensation
+            # Added for Integration Stories
+            "SNOMED:254837009": {"name": "Breast Cancer", "embedding": [0.8, 0.1, 0.1]},
         }
 
     def search(self, query: str, top_k: int = 10) -> List[Dict[str, Any]]:
@@ -47,6 +49,10 @@ class MockCoreasonCodex:
             if query_lower == "cold":
                 if cid in ["SNOMED:82272006", "SNOMED:44077006"]:
                     score = 0.9
+
+            # Special handling for "Lasix" -> Furosemide
+            if query_lower == "lasix" and name_lower == "furosemide":
+                score = 0.9
 
             results.append({"concept_id": cid, "concept_name": name, "score": score})
         return sorted(results, key=lambda x: float(x["score"]), reverse=True)[:top_k]

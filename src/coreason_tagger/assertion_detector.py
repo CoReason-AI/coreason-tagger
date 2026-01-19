@@ -85,56 +85,66 @@ class RegexBasedAssertionDetector(BaseAssertionDetector):
                 return True
         return False
 
+    def _get_local_context(self, text: str, span_start: int, span_end: int) -> str:
+        """
+        Extract the local context (e.g., current clause) around the span.
+        Splits by common clause delimiters: . ; ,
+        """
+        # Find clause boundaries
+        # Look backwards for delimiter or start
+        delimiters = r"[.;,]"
+
+        # Search backwards from span_start
+        pre_text = text[:span_start]
+        match_pre = list(re.finditer(delimiters, pre_text))
+        start_idx = match_pre[-1].end() if match_pre else 0
+
+        # Search forwards from span_end
+        post_text = text[span_end:]
+        match_post = re.search(delimiters, post_text)
+        end_idx = (span_end + match_post.start()) if match_post else len(text)
+
+        return text[start_idx:end_idx].strip()
+
     def detect(self, text: str, span_text: str, span_start: int, span_end: int) -> AssertionStatus:
         """
         Detect assertion status by analyzing the window of text around the entity.
-        Currently analyzes the whole sentence or a reasonable window.
+        Currently analyzes the local clause context.
         """
-
-        # Simple windowing strategy: look at the whole text provided (assuming it's a sentence)
-        # In a real system, we might dependency parse, but regex looks at the linear context.
-
-        # To avoid matching the entity itself (if it contains trigger words like "failure"?? unlikely),
-        # we focus on the context. But for simple regex, checking the whole string is the starting point.
-        # Ideally, we should check "preceding" and "following" context.
-
-        # pre_context = text[:span_start]
-        # post_context = text[span_end:]
-
-        # We consider a window of roughly 5-10 words before the mention as the most potent area for assertion triggers.
-        # But for this implementation, we search the full 'text' provided (assuming the caller passes a sentence).
+        # Use local context (clause) instead of full text to avoid cross-contamination
+        context_text = self._get_local_context(text, span_start, span_end)
 
         # Check specific edge cases first (override general patterns)
 
         # Double Negation / Complex Logic
         # "not ruled out" -> POSSIBLE (contains "not" (absent) and "rule out" (possible))
-        if re.search(r"\bnot ruled out\b", text, re.IGNORECASE):
+        if re.search(r"\bnot ruled out\b", context_text, re.IGNORECASE):
             return AssertionStatus.POSSIBLE
 
-        if re.search(r"\bcannot rule out\b", text, re.IGNORECASE):
+        if re.search(r"\bcannot rule out\b", context_text, re.IGNORECASE):
             return AssertionStatus.POSSIBLE
 
         # Priority Check
 
         # 1. Family History (Strongest override usually)
-        if self._matches_any(text, self.family_patterns):
+        if self._matches_any(context_text, self.family_patterns):
             return AssertionStatus.FAMILY
 
         # 2. Associated with someone else
-        if self._matches_any(text, self.associated_patterns):
+        if self._matches_any(context_text, self.associated_patterns):
             return AssertionStatus.ASSOCIATED_WITH_SOMEONE_ELSE
 
         # 3. Conditional
-        if self._matches_any(text, self.conditional_patterns):
+        if self._matches_any(context_text, self.conditional_patterns):
             return AssertionStatus.CONDITIONAL
 
         # 4. Absent (Negation)
         # Note: We need to be careful not to trigger on "not ruled out" here, but we handled that edge case above.
-        if self._matches_any(text, self.absent_patterns):
+        if self._matches_any(context_text, self.absent_patterns):
             return AssertionStatus.ABSENT
 
         # 5. Possible
-        if self._matches_any(text, self.possible_patterns):
+        if self._matches_any(context_text, self.possible_patterns):
             return AssertionStatus.POSSIBLE
 
         # Default
