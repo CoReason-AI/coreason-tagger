@@ -11,11 +11,11 @@
 from typing import Any, Optional
 
 from gliner import GLiNER
+from loguru import logger
 
 from coreason_tagger.config import settings
 from coreason_tagger.interfaces import BaseNERExtractor
 from coreason_tagger.schema import ExtractedSpan
-from coreason_tagger.utils.logger import logger
 
 
 class GLiNERExtractor(BaseNERExtractor):

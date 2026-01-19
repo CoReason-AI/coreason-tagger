@@ -10,16 +10,13 @@
 
 from unittest.mock import patch
 
-from coreason_tagger.utils.logger import logger, setup_logger
+from coreason_tagger.utils.logger import setup_logger
+from loguru import logger
 
 
 def test_logger_initialization() -> None:
     """Test that the logger is initialized correctly."""
-    assert logger is not None
-
-
-def test_logger_setup() -> None:
-    # Logger is already configured in module scope
+    # loguru.logger is a singleton always available
     assert logger is not None
 
 
