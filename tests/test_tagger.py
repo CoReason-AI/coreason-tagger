@@ -360,9 +360,7 @@ def test_tag_batch_mixed_empty_results(
     mock_ner.extract_batch.return_value = [[span1], [], [span3]]
 
     mock_assertion.detect.return_value = AssertionStatus.PRESENT
-    mock_linker.link.return_value = {
-        "concept_id": "CID", "concept_name": "Name", "link_confidence": 1.0
-    }
+    mock_linker.link.return_value = {"concept_id": "CID", "concept_name": "Name", "link_confidence": 1.0}
 
     results = tagger.tag_batch(texts, labels)
 
@@ -397,5 +395,5 @@ def test_tag_batch_context_alignment(
 
     calls = mock_assertion.detect.call_args_list
     assert len(calls) == 2
-    assert calls[0].kwargs['text'] == "Context A"
-    assert calls[1].kwargs['text'] == "Context B"
+    assert calls[0].kwargs["text"] == "Context A"
+    assert calls[1].kwargs["text"] == "Context B"
