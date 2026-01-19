@@ -397,3 +397,111 @@ def test_tag_batch_context_alignment(
     assert len(calls) == 2
     assert calls[0].kwargs["text"] == "Context A"
     assert calls[1].kwargs["text"] == "Context B"
+
+
+# --- Complex Scenarios ---
+
+
+def test_batch_duplicate_inputs(
+    tagger: CoreasonTagger, mock_ner: MagicMock, mock_assertion: MagicMock, mock_linker: MagicMock
+) -> None:
+    """
+    Test duplicate inputs in the batch.
+    Ensure they are processed as distinct items and order is preserved.
+    """
+    texts = ["Same text", "Same text"]
+    span = ExtractedSpan(text="Entity", label="L", start=0, end=6, score=1.0)
+    mock_ner.extract_batch.return_value = [[span], [span]]
+
+    mock_assertion.detect.return_value = AssertionStatus.PRESENT
+    mock_linker.link.return_value = {"concept_id": "C1", "concept_name": "N", "link_confidence": 1.0}
+
+    results = tagger.tag_batch(texts, ["L"])
+
+    assert len(results) == 2
+    # Verify outputs are distinct list objects
+    assert results[0] is not results[1]
+    # Verify contents are identical
+    assert results[0][0].concept_id == "C1"
+    assert results[1][0].concept_id == "C1"
+
+
+def test_batch_high_density_entities(
+    tagger: CoreasonTagger, mock_ner: MagicMock, mock_assertion: MagicMock, mock_linker: MagicMock
+) -> None:
+    """
+    Test a batch with varying density: empty, single, and multiple entities.
+    """
+    texts = ["None", "Single", "Multi"]
+    spans_single = [ExtractedSpan(text="S", label="L", start=0, end=1, score=1.0)]
+    spans_multi = [
+        ExtractedSpan(text="M1", label="L", start=0, end=2, score=1.0),
+        ExtractedSpan(text="M2", label="L", start=3, end=5, score=1.0),
+    ]
+
+    mock_ner.extract_batch.return_value = [[], spans_single, spans_multi]
+    mock_assertion.detect.return_value = AssertionStatus.PRESENT
+    mock_linker.link.return_value = {"concept_id": "C", "concept_name": "N", "link_confidence": 1.0}
+
+    results = tagger.tag_batch(texts, ["L"])
+
+    assert len(results) == 3
+    assert len(results[0]) == 0
+    assert len(results[1]) == 1
+    assert len(results[2]) == 2
+    assert results[2][0].span_text == "M1"
+    assert results[2][1].span_text == "M2"
+
+
+def test_batch_semantic_disambiguation(
+    tagger: CoreasonTagger, mock_ner: MagicMock, mock_assertion: MagicMock, mock_linker: MagicMock
+) -> None:
+    """
+    Test that identical mentions in different contexts link to different concepts.
+    Context A: "Patient has a cold." -> Viral Rhinitis
+    Context B: "Patient feels cold." -> Chills
+    """
+    texts = ["Patient has a cold.", "Patient feels cold."]
+    # Same span text, different positions
+    span1 = ExtractedSpan(text="cold", label="Condition", start=14, end=18, score=1.0)
+    span2 = ExtractedSpan(text="cold", label="Symptom", start=14, end=18, score=1.0)
+
+    mock_ner.extract_batch.return_value = [[span1], [span2]]
+    mock_assertion.detect.return_value = AssertionStatus.PRESENT
+
+    # Mock different link results based on call order (simplest mock strategy)
+    # Ideally we'd mock based on input, but verifying side_effect mapping is sufficient for the orchestrator test
+    mock_linker.link.side_effect = [
+        {"concept_id": "SNOMED:82272006", "concept_name": "Viral Rhinitis", "link_confidence": 0.9},
+        {"concept_id": "SNOMED:44077006", "concept_name": "Chills", "link_confidence": 0.9},
+    ]
+
+    results = tagger.tag_batch(texts, ["Condition"])
+
+    assert results[0][0].concept_id == "SNOMED:82272006"
+    assert results[1][0].concept_id == "SNOMED:44077006"
+
+
+def test_robustness_empty_span_text(
+    tagger: CoreasonTagger, mock_ner: MagicMock, mock_assertion: MagicMock, mock_linker: MagicMock
+) -> None:
+    """
+    Test robustness: If NER returns a span with empty text, it should be skipped
+    to prevent validation errors in TaggedEntity.
+    """
+    text = "Some text."
+    # Valid span + Empty span
+    span_valid = ExtractedSpan(text="valid", label="L", start=0, end=5, score=1.0)
+    span_empty = ExtractedSpan(text="", label="L", start=6, end=6, score=0.0)
+
+    mock_ner.extract.return_value = [span_valid, span_empty]
+    mock_assertion.detect.return_value = AssertionStatus.PRESENT
+    mock_linker.link.return_value = {"concept_id": "C", "concept_name": "N", "link_confidence": 1.0}
+
+    results = tagger.tag(text, ["L"])
+
+    # Should only contain the valid one
+    assert len(results) == 1
+    assert results[0].span_text == "valid"
+    # Linker should NOT have been called for the empty one
+    assert mock_linker.link.call_count == 1

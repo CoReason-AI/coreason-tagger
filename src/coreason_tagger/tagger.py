@@ -49,6 +49,10 @@ class CoreasonTagger:
         Returns:
             Optional[TaggedEntity]: The processed entity, or None if linking failed.
         """
+        # Guard: If span text is empty, it's useless and will fail validation.
+        if not span.text or not span.text.strip():
+            return None
+
         # 2. Contextualize (Assertion)
         assertion_status = self.assertion.detect(
             text=text,
