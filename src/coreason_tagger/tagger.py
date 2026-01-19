@@ -8,7 +8,7 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
-from typing import List, Optional
+from typing import Optional
 
 from coreason_tagger.interfaces import BaseAssertionDetector, BaseLinker, BaseNERExtractor
 from coreason_tagger.schema import ExtractedSpan, TaggedEntity
@@ -84,7 +84,7 @@ class CoreasonTagger:
             assertion=assertion_status,
         )
 
-    def tag(self, text: str, labels: List[str]) -> List[TaggedEntity]:
+    def tag(self, text: str, labels: list[str]) -> list[TaggedEntity]:
         """
         Process text to extract, contextualize, and link entities.
 
@@ -101,7 +101,7 @@ class CoreasonTagger:
         # 1. Extract (NER)
         spans = self.ner.extract(text, labels)
 
-        tagged_entities: List[TaggedEntity] = []
+        tagged_entities: list[TaggedEntity] = []
 
         for span in spans:
             entity = self._process_span(text, span)
@@ -110,7 +110,7 @@ class CoreasonTagger:
 
         return tagged_entities
 
-    def tag_batch(self, texts: List[str], labels: List[str]) -> List[List[TaggedEntity]]:
+    def tag_batch(self, texts: list[str], labels: list[str]) -> list[list[TaggedEntity]]:
         """
         Process a batch of texts to extract, contextualize, and link entities.
         Optimized for batch NER processing.
@@ -128,12 +128,12 @@ class CoreasonTagger:
         # 1. Batch Extract (NER)
         batch_spans = self.ner.extract_batch(texts, labels)
 
-        batch_results: List[List[TaggedEntity]] = []
+        batch_results: list[list[TaggedEntity]] = []
 
         # Process each text's spans
         # zip(strict=True) ensures alignment, though extract_batch guarantees it too
         for text, spans in zip(texts, batch_spans, strict=True):
-            tagged_entities: List[TaggedEntity] = []
+            tagged_entities: list[TaggedEntity] = []
             for span in spans:
                 entity = self._process_span(text, span)
                 if entity:
