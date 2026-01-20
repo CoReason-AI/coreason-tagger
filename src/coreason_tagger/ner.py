@@ -57,44 +57,63 @@ class GLiNERExtractor(BaseNERExtractor):
             context=context,
         )
 
-    def extract(self, text: str, labels: list[str]) -> list[ExtractedSpan]:
+    def _validate_threshold(self, threshold: float) -> None:
+        """
+        Validate that the threshold is within the valid range [0.0, 1.0].
+
+        Args:
+            threshold (float): The threshold value to check.
+
+        Raises:
+            ValueError: If the threshold is out of bounds.
+        """
+        if not 0.0 <= threshold <= 1.0:
+            raise ValueError(f"Threshold must be between 0.0 and 1.0, got {threshold}")
+
+    def extract(self, text: str, labels: list[str], threshold: float = 0.5) -> list[ExtractedSpan]:
         """
         Extract entities from text using the provided labels.
 
         Args:
             text (str): The input text to process.
             labels (list[str]): A list of entity types to detect.
+            threshold (float): The confidence threshold. Defaults to 0.5.
 
         Returns:
             list[ExtractedSpan]: A list of detected entity spans.
         """
+        self._validate_threshold(threshold)
+
         if not text or not labels:
             return []
 
         # GLiNER returns a list of dicts:
         # [{'start': 0, 'end': 5, 'text': '...', 'label': '...', 'score': 0.95}, ...]
-        raw_entities = self.model.predict_entities(text, labels)
+        raw_entities = self.model.predict_entities(text, labels, threshold=threshold)
 
         return [self._build_span(entity, text) for entity in raw_entities]
 
-    def extract_batch(self, texts: list[str], labels: list[str]) -> list[list[ExtractedSpan]]:
+    def extract_batch(self, texts: list[str], labels: list[str], threshold: float = 0.5) -> list[list[ExtractedSpan]]:
         """
         Extract entities from a batch of texts using the provided labels.
 
         Args:
             texts (list[str]): The list of input texts to process.
             labels (list[str]): A list of entity types to detect.
+            threshold (float): The confidence threshold. Defaults to 0.5.
 
         Returns:
             list[list[ExtractedSpan]]: A list of lists, where each inner list contains
                                        detected entity spans for the corresponding text.
         """
+        self._validate_threshold(threshold)
+
         if not texts or not labels:
             return [[] for _ in texts]
 
         # Use batch_predict_entities if available.
         # batch_predict_entities returns a list of lists of dicts.
-        batch_raw_entities = self.model.batch_predict_entities(texts, labels)
+        batch_raw_entities = self.model.batch_predict_entities(texts, labels, threshold=threshold)
 
         batch_extracted_spans: list[list[ExtractedSpan]] = []
 

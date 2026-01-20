@@ -56,13 +56,14 @@ class BaseNERExtractor(ABC):
     """Abstract base class for NER extraction strategies."""
 
     @abstractmethod
-    def extract(self, text: str, labels: List[str]) -> List[ExtractedSpan]:
+    def extract(self, text: str, labels: List[str], threshold: float = 0.5) -> List[ExtractedSpan]:
         """
         Extract entities from text using the provided labels.
 
         Args:
             text (str): The input text to process.
             labels (List[str]): A list of entity types to detect (e.g., ["Symptom", "Drug"]).
+            threshold (float): The confidence threshold for extraction. Defaults to 0.5.
 
         Returns:
             List[ExtractedSpan]: A list of detected entity spans.
@@ -70,13 +71,14 @@ class BaseNERExtractor(ABC):
         pass  # pragma: no cover
 
     @abstractmethod
-    def extract_batch(self, texts: List[str], labels: List[str]) -> List[List[ExtractedSpan]]:
+    def extract_batch(self, texts: List[str], labels: List[str], threshold: float = 0.5) -> List[List[ExtractedSpan]]:
         """
         Extract entities from a batch of texts using the provided labels.
 
         Args:
             texts (List[str]): The list of input texts to process.
             labels (List[str]): A list of entity types to detect.
+            threshold (float): The confidence threshold for extraction. Defaults to 0.5.
 
         Returns:
             List[List[ExtractedSpan]]: A list of lists, where each inner list contains
