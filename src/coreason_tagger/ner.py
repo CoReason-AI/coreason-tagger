@@ -57,6 +57,19 @@ class GLiNERExtractor(BaseNERExtractor):
             context=context,
         )
 
+    def _validate_threshold(self, threshold: float) -> None:
+        """
+        Validate that the threshold is within the valid range [0.0, 1.0].
+
+        Args:
+            threshold (float): The threshold value to check.
+
+        Raises:
+            ValueError: If the threshold is out of bounds.
+        """
+        if not 0.0 <= threshold <= 1.0:
+            raise ValueError(f"Threshold must be between 0.0 and 1.0, got {threshold}")
+
     def extract(self, text: str, labels: list[str], threshold: float = 0.5) -> list[ExtractedSpan]:
         """
         Extract entities from text using the provided labels.
@@ -69,8 +82,7 @@ class GLiNERExtractor(BaseNERExtractor):
         Returns:
             list[ExtractedSpan]: A list of detected entity spans.
         """
-        if not 0.0 <= threshold <= 1.0:
-            raise ValueError(f"Threshold must be between 0.0 and 1.0, got {threshold}")
+        self._validate_threshold(threshold)
 
         if not text or not labels:
             return []
@@ -94,8 +106,7 @@ class GLiNERExtractor(BaseNERExtractor):
             list[list[ExtractedSpan]]: A list of lists, where each inner list contains
                                        detected entity spans for the corresponding text.
         """
-        if not 0.0 <= threshold <= 1.0:
-            raise ValueError(f"Threshold must be between 0.0 and 1.0, got {threshold}")
+        self._validate_threshold(threshold)
 
         if not texts or not labels:
             return [[] for _ in texts]
