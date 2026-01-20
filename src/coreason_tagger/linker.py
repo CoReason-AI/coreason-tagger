@@ -98,6 +98,29 @@ class VectorLinker(BaseLinker):
 
         return result
 
+    def _build_linked_entity(
+        self,
+        entity: EntityCandidate,
+        strategy: ExtractionStrategy,
+        match: Optional[Dict[str, Any]] = None,
+    ) -> LinkedEntity:
+        """
+        Helper to construct a LinkedEntity from a candidate and an optional match.
+        Reduces code duplication for returning results.
+        """
+        base_data = entity.model_dump()
+
+        if match:
+            return LinkedEntity(
+                **base_data,
+                strategy_used=strategy,
+                concept_id=match.get("concept_id"),
+                concept_name=match.get("concept_name"),
+                link_score=match.get("link_score", 0.0),
+            )
+
+        return LinkedEntity(**base_data, strategy_used=strategy)
+
     def resolve(self, entity: EntityCandidate, context: str, strategy: ExtractionStrategy) -> LinkedEntity:
         """
         Link an extracted entity to a concept in the codex.
@@ -118,13 +141,13 @@ class VectorLinker(BaseLinker):
         text = entity.text
         if not text:
             # Return entity without link
-            return LinkedEntity(**entity.model_dump(), strategy_used=strategy)
+            return self._build_linked_entity(entity, strategy)
 
         # Step 1: Get Candidates (Cached based on mention text)
         candidates = self._cached_get_candidates(text)
 
         if not candidates:
-            return LinkedEntity(**entity.model_dump(), strategy_used=strategy)
+            return self._build_linked_entity(entity, strategy)
 
         # Step 2: Semantic Re-ranking (Context-Aware)
         # If context is available, we use it for the query embedding to disambiguate.
@@ -139,12 +162,6 @@ class VectorLinker(BaseLinker):
         best_match = self._rerank(query_text, candidates)
 
         if not best_match:  # pragma: no cover
-            return LinkedEntity(**entity.model_dump(), strategy_used=strategy)
+            return self._build_linked_entity(entity, strategy)
 
-        return LinkedEntity(
-            **entity.model_dump(),
-            strategy_used=strategy,
-            concept_id=best_match.get("concept_id"),
-            concept_name=best_match.get("concept_name"),
-            link_score=best_match.get("link_score", 0.0),
-        )
+        return self._build_linked_entity(entity, strategy, best_match)

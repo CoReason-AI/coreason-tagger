@@ -24,65 +24,73 @@ class RegexBasedAssertionDetector(BaseAssertionDetector):
 
     def __init__(self) -> None:
         # Compile patterns for efficiency
+        # We join patterns with | to create a single regex for each category
+        # This avoids iterating through lists of strings
 
-        # Family History
-        self.family_patterns = [
-            r"\b(mother|father|brother|sister|grandmother|grandfather|aunt|uncle|parent|sibling)s?\b",
-            r"\bfamily history\b",
-            r"\bmaternal\b",
-            r"\bpaternal\b",
-        ]
+        self.family_regex = self._compile(
+            [
+                r"\b(mother|father|brother|sister|grandmother|grandfather|aunt|uncle|parent|sibling)s?\b",
+                r"\bfamily history\b",
+                r"\bmaternal\b",
+                r"\bpaternal\b",
+            ]
+        )
 
-        # Personal History
-        self.history_patterns = [
-            r"\bhistory of\b",
-            r"\bh/o\b",
-            r"\bpast medical history\b",
-            r"\bstatus post\b",
-            r"\bprevious\b",
-        ]
+        self.history_regex = self._compile(
+            [
+                r"\bhistory of\b",
+                r"\bh/o\b",
+                r"\bpast medical history\b",
+                r"\bstatus post\b",
+                r"\bprevious\b",
+            ]
+        )
 
-        # Conditional / Hypothetical
-        self.conditional_patterns = [
-            r"\bif\b",
-            r"\bunless\b",
-            r"\bshould\b",
-            r"\breturn if\b",
-            r"\bmonitor for\b",
-        ]
+        self.conditional_regex = self._compile(
+            [
+                r"\bif\b",
+                r"\bunless\b",
+                r"\bshould\b",
+                r"\breturn if\b",
+                r"\bmonitor for\b",
+            ]
+        )
 
-        # Absent (Negation)
-        self.absent_patterns = [
-            r"\bno\b",
-            r"\bnot\b",
-            r"\bdenies\b",
-            r"\bdenied\b",
-            r"\bwithout\b",
-            r"\bfree of\b",
-            r"\bnegative for\b",
-            r"\bunlikely\b",
-            r"\brules out\b",  # "This rules out X" -> X is Absent
-        ]
+        self.absent_regex = self._compile(
+            [
+                r"\bno\b",
+                r"\bnot\b",
+                r"\bdenies\b",
+                r"\bdenied\b",
+                r"\bwithout\b",
+                r"\bfree of\b",
+                r"\bnegative for\b",
+                r"\bunlikely\b",
+                r"\brules out\b",
+            ]
+        )
 
-        # Possible (Uncertainty)
-        self.possible_patterns = [
-            r"\bpossible\b",
-            r"\bprobable\b",
-            r"\blikely\b",
-            r"\brule out\b",  # "Rule out X" -> X is Possible/Hypothetical target
-            r"\bsuspect\b",
-            r"\bsuspected\b",
-            r"\bquestion of\b",
-            r"\bcannot rule out\b",
-            r"\bnot ruled out\b",  # Double negation-ish context
-        ]
+        self.possible_regex = self._compile(
+            [
+                r"\bpossible\b",
+                r"\bprobable\b",
+                r"\blikely\b",
+                r"\brule out\b",
+                r"\bsuspect\b",
+                r"\bsuspected\b",
+                r"\bquestion of\b",
+                r"\bcannot rule out\b",
+                r"\bnot ruled out\b",
+            ]
+        )
 
-    def _matches_any(self, text: str, patterns: List[str]) -> bool:
-        """Check if any pattern matches the text (case-insensitive)."""
-        for pat in patterns:
-            if re.search(pat, text, re.IGNORECASE):
-                return True
-        return False
+        # Specific edge case patterns (compiled separately)
+        self.not_ruled_out_regex = re.compile(r"\bnot ruled out\b", re.IGNORECASE)
+        self.cannot_rule_out_regex = re.compile(r"\bcannot rule out\b", re.IGNORECASE)
+
+    def _compile(self, patterns: List[str]) -> re.Pattern[str]:
+        """Compile a list of regex patterns into a single optimized pattern."""
+        return re.compile("|".join(f"(?:{p})" for p in patterns), re.IGNORECASE)
 
     def _get_local_context(self, text: str, span_start: int, span_end: int) -> str:
         """
@@ -114,35 +122,29 @@ class RegexBasedAssertionDetector(BaseAssertionDetector):
         context_text = self._get_local_context(text, span_start, span_end)
 
         # Check specific edge cases first (override general patterns)
-
         # Double Negation / Complex Logic
         # "not ruled out" -> POSSIBLE (contains "not" (absent) and "rule out" (possible))
-        if re.search(r"\bnot ruled out\b", context_text, re.IGNORECASE):
+        if self.not_ruled_out_regex.search(context_text):
             return AssertionStatus.POSSIBLE
 
-        if re.search(r"\bcannot rule out\b", context_text, re.IGNORECASE):
+        if self.cannot_rule_out_regex.search(context_text):
             return AssertionStatus.POSSIBLE
 
-        # Priority Check
+        # Priority Check (Ordered)
 
-        # 1. Family History (Strongest override usually)
-        if self._matches_any(context_text, self.family_patterns):
+        if self.family_regex.search(context_text):
             return AssertionStatus.FAMILY
 
-        # 2. Conditional
-        if self._matches_any(context_text, self.conditional_patterns):
+        if self.conditional_regex.search(context_text):
             return AssertionStatus.CONDITIONAL
 
-        # 3. Absent (Negation)
-        if self._matches_any(context_text, self.absent_patterns):
+        if self.absent_regex.search(context_text):
             return AssertionStatus.ABSENT
 
-        # 4. Possible
-        if self._matches_any(context_text, self.possible_patterns):
+        if self.possible_regex.search(context_text):
             return AssertionStatus.POSSIBLE
 
-        # 5. History (Personal)
-        if self._matches_any(context_text, self.history_patterns):
+        if self.history_regex.search(context_text):
             return AssertionStatus.HISTORY
 
         # Default
