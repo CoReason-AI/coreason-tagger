@@ -4,6 +4,7 @@
 import pytest
 from coreason_tagger.schema import (
     AssertionStatus,
+    BatchRequest,
     EntityCandidate,
     ExtractionStrategy,
     LinkedEntity,
@@ -93,3 +94,19 @@ def test_linked_entity_invalid_assertion() -> None:
             strategy_used=ExtractionStrategy.SPEED_GLINER,
             assertion="INVALID_STATUS",  # type: ignore
         )
+
+
+def test_batch_request_model() -> None:
+    """Test validation of the BatchRequest model."""
+    # Valid
+    req = BatchRequest(texts=["t1", "t2"], labels=["l1", "l2"], config={"threshold": 0.5})
+    assert len(req.texts) == 2
+    assert req.config["threshold"] == 0.5
+
+    # Invalid types
+    with pytest.raises(ValidationError):
+        BatchRequest(texts="not a list", labels=[])  # type: ignore
+
+    # Missing fields
+    with pytest.raises(ValidationError):
+        BatchRequest(texts=["t1"])  # type: ignore

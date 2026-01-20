@@ -19,7 +19,7 @@ class RegexBasedAssertionDetector(BaseAssertionDetector):
     """
     A rule-based assertion detector using regular expressions.
     Prioritizes statuses in a specific order:
-    FAMILY > HISTORY > CONDITIONAL > ABSENT > POSSIBLE > PRESENT
+    FAMILY > CONDITIONAL > ABSENT > POSSIBLE > HISTORY > PRESENT
     """
 
     def __init__(self) -> None:
@@ -129,21 +129,21 @@ class RegexBasedAssertionDetector(BaseAssertionDetector):
         if self._matches_any(context_text, self.family_patterns):
             return AssertionStatus.FAMILY
 
-        # 2. History (Personal)
-        if self._matches_any(context_text, self.history_patterns):
-            return AssertionStatus.HISTORY
-
-        # 3. Conditional
+        # 2. Conditional
         if self._matches_any(context_text, self.conditional_patterns):
             return AssertionStatus.CONDITIONAL
 
-        # 4. Absent (Negation)
+        # 3. Absent (Negation)
         if self._matches_any(context_text, self.absent_patterns):
             return AssertionStatus.ABSENT
 
-        # 5. Possible
+        # 4. Possible
         if self._matches_any(context_text, self.possible_patterns):
             return AssertionStatus.POSSIBLE
+
+        # 5. History (Personal)
+        if self._matches_any(context_text, self.history_patterns):
+            return AssertionStatus.HISTORY
 
         # Default
         return AssertionStatus.PRESENT
