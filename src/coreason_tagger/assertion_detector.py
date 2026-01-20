@@ -19,12 +19,11 @@ class RegexBasedAssertionDetector(BaseAssertionDetector):
     """
     A rule-based assertion detector using regular expressions.
     Prioritizes statuses in a specific order:
-    FAMILY > ASSOCIATED > CONDITIONAL > ABSENT > POSSIBLE > PRESENT
+    FAMILY > HISTORY > CONDITIONAL > ABSENT > POSSIBLE > PRESENT
     """
 
     def __init__(self) -> None:
         # Compile patterns for efficiency
-        # Note: Order matters implicitly if we check sequentially, but we define explicit priority below.
 
         # Family History
         self.family_patterns = [
@@ -34,13 +33,13 @@ class RegexBasedAssertionDetector(BaseAssertionDetector):
             r"\bpaternal\b",
         ]
 
-        # Associated with someone else (non-family usually, or broad context)
-        # "Patient's husband has..."
-        self.associated_patterns = [
-            r"\b(husband|wife|spouse|partner|friend|neighbor|colleague)s?\b",
-            r"\bdaughter|son\b",  # Children are family, but often treated as "someone else" context in some schemas.
-            # We'll map them to FAMILY if strictly genetic, but here we group "other people".
-            # For this PRD, "Mother" -> Family. Let's stick to the PRD examples.
+        # Personal History
+        self.history_patterns = [
+            r"\bhistory of\b",
+            r"\bh/o\b",
+            r"\bpast medical history\b",
+            r"\bstatus post\b",
+            r"\bprevious\b",
         ]
 
         # Conditional / Hypothetical
@@ -130,16 +129,15 @@ class RegexBasedAssertionDetector(BaseAssertionDetector):
         if self._matches_any(context_text, self.family_patterns):
             return AssertionStatus.FAMILY
 
-        # 2. Associated with someone else
-        if self._matches_any(context_text, self.associated_patterns):
-            return AssertionStatus.ASSOCIATED_WITH_SOMEONE_ELSE
+        # 2. History (Personal)
+        if self._matches_any(context_text, self.history_patterns):
+            return AssertionStatus.HISTORY
 
         # 3. Conditional
         if self._matches_any(context_text, self.conditional_patterns):
             return AssertionStatus.CONDITIONAL
 
         # 4. Absent (Negation)
-        # Note: We need to be careful not to trigger on "not ruled out" here, but we handled that edge case above.
         if self._matches_any(context_text, self.absent_patterns):
             return AssertionStatus.ABSENT
 

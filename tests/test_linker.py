@@ -13,7 +13,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from coreason_tagger.linker import VectorLinker
-from coreason_tagger.schema import ExtractedSpan
+from coreason_tagger.schema import EntityCandidate, ExtractionStrategy, LinkedEntity
 
 
 # Mock the SentenceTransformer to avoid downloading/loading the model during tests
@@ -44,8 +44,15 @@ def mock_codex() -> MagicMock:
     return codex
 
 
-def create_span(text: str, label: str = "Symptom") -> ExtractedSpan:
-    return ExtractedSpan(text=text, label=label, start=0, end=len(text), score=1.0)
+def create_candidate(text: str, label: str = "Symptom") -> EntityCandidate:
+    return EntityCandidate(
+        text=text,
+        label=label,
+        start=0,
+        end=len(text),
+        confidence=1.0,
+        source_model="mock",
+    )
 
 
 def test_initialization(mock_sentence_transformer: MagicMock, mock_codex: MagicMock) -> None:
@@ -54,25 +61,27 @@ def test_initialization(mock_sentence_transformer: MagicMock, mock_codex: MagicM
     mock_sentence_transformer.assert_called_with("test-model")
 
 
-def test_link_empty_text(mock_sentence_transformer: MagicMock, mock_codex: MagicMock) -> None:
+def test_resolve_empty_text(mock_sentence_transformer: MagicMock, mock_codex: MagicMock) -> None:
     linker = VectorLinker(codex_client=mock_codex)
-    span = create_span("")
-    result = linker.link(span)
-    assert result == {}
+    candidate = create_candidate("")
+    result = linker.resolve(candidate, "", ExtractionStrategy.SPEED_GLINER)
+    assert isinstance(result, LinkedEntity)
+    assert result.concept_id is None
     mock_codex.search.assert_not_called()
 
 
-def test_link_no_candidates(mock_sentence_transformer: MagicMock, mock_codex: MagicMock) -> None:
+def test_resolve_no_candidates(mock_sentence_transformer: MagicMock, mock_codex: MagicMock) -> None:
     linker = VectorLinker(codex_client=mock_codex)
     mock_codex.search.return_value = []
 
-    span = create_span("unknown term")
-    result = linker.link(span)
-    assert result == {}
+    candidate = create_candidate("unknown term")
+    result = linker.resolve(candidate, "context", ExtractionStrategy.SPEED_GLINER)
+    assert isinstance(result, LinkedEntity)
+    assert result.concept_id is None
     mock_codex.search.assert_called_once()
 
 
-def test_link_success(mock_sentence_transformer: MagicMock, mock_codex: MagicMock) -> None:
+def test_resolve_success(mock_sentence_transformer: MagicMock, mock_codex: MagicMock) -> None:
     linker = VectorLinker(codex_client=mock_codex)
 
     # Setup candidates
@@ -88,15 +97,15 @@ def test_link_success(mock_sentence_transformer: MagicMock, mock_codex: MagicMoc
         # Return a tensor where the second candidate (Migraine) has a higher score
         mock_cos_sim.return_value = torch.tensor([[0.8, 0.95]])
 
-        span = create_span("severe migraine")
-        result = linker.link(span)
+        candidate = create_candidate("severe migraine")
+        result = linker.resolve(candidate, "context", ExtractionStrategy.SPEED_GLINER)
 
-        assert result["concept_id"] == "C2"
-        assert result["concept_name"] == "Migraine"
-        assert result["link_confidence"] == pytest.approx(0.95)
+        assert result.concept_id == "C2"
+        assert result.concept_name == "Migraine"
+        assert result.link_score == pytest.approx(0.95)
 
 
-def test_link_integration_with_mock_codex() -> None:
+def test_resolve_integration_with_mock_codex() -> None:
     from coreason_tagger.codex_mock import MockCoreasonCodex
 
     codex = MockCoreasonCodex()
@@ -117,17 +126,16 @@ def test_link_integration_with_mock_codex() -> None:
         # We assume search returns 3 items
         mock_cos_sim.return_value = torch.tensor([[0.1, 0.9, 0.2]])
 
-        span = create_span("head ache")
-        result = linker.link(span)
+        candidate = create_candidate("head ache")
+        result = linker.resolve(candidate, "context", ExtractionStrategy.SPEED_GLINER)
 
         # We expect a result
         assert result is not None
-        assert "concept_id" in result
-        assert "link_confidence" in result
-        assert result["link_confidence"] == pytest.approx(0.9)
+        assert result.concept_id is not None
+        assert result.link_score == pytest.approx(0.9)
 
 
-def test_link_malformed_candidates(mock_sentence_transformer: MagicMock, mock_codex: MagicMock) -> None:
+def test_resolve_malformed_candidates(mock_sentence_transformer: MagicMock, mock_codex: MagicMock) -> None:
     """Test handling of candidates missing keys like 'concept_name'."""
     linker = VectorLinker(codex_client=mock_codex)
 
@@ -144,14 +152,14 @@ def test_link_malformed_candidates(mock_sentence_transformer: MagicMock, mock_co
         # Make the first one (missing name) have higher vector score to test it can be selected
         mock_cos_sim.return_value = torch.tensor([[0.9, 0.1]])
 
-        span = create_span("query")
-        result = linker.link(span)
+        candidate = create_candidate("query")
+        result = linker.resolve(candidate, "context", ExtractionStrategy.SPEED_GLINER)
 
-        assert result["concept_id"] == "C1"
-        assert result["link_confidence"] == pytest.approx(0.9)
+        assert result.concept_id == "C1"
+        assert result.link_score == pytest.approx(0.9)
 
 
-def test_link_tie_handling(mock_sentence_transformer: MagicMock, mock_codex: MagicMock) -> None:
+def test_resolve_tie_handling(mock_sentence_transformer: MagicMock, mock_codex: MagicMock) -> None:
     """Test behavior when multiple candidates have the same score."""
     linker = VectorLinker(codex_client=mock_codex)
 
@@ -167,15 +175,15 @@ def test_link_tie_handling(mock_sentence_transformer: MagicMock, mock_codex: Mag
         # Both have 0.8
         mock_cos_sim.return_value = torch.tensor([[0.8, 0.8]])
 
-        span = create_span("query")
-        result = linker.link(span)
+        candidate = create_candidate("query")
+        result = linker.resolve(candidate, "context", ExtractionStrategy.SPEED_GLINER)
 
         # Should pick the first one (index 0) due to argmax behavior
-        assert result["concept_id"] == "C1"
-        assert result["link_confidence"] == pytest.approx(0.8)
+        assert result.concept_id == "C1"
+        assert result.link_score == pytest.approx(0.8)
 
 
-def test_link_reordering_logic(mock_sentence_transformer: MagicMock, mock_codex: MagicMock) -> None:
+def test_resolve_reordering_logic(mock_sentence_transformer: MagicMock, mock_codex: MagicMock) -> None:
     """Test that a lower-ranked candidate from search is promoted if it has better vector score."""
     linker = VectorLinker(codex_client=mock_codex)
 
@@ -191,13 +199,13 @@ def test_link_reordering_logic(mock_sentence_transformer: MagicMock, mock_codex:
         # Rank2 has much better vector score
         mock_cos_sim.return_value = torch.tensor([[0.2, 0.95]])
 
-        span = create_span("query")
-        result = linker.link(span)
+        candidate = create_candidate("query")
+        result = linker.resolve(candidate, "context", ExtractionStrategy.SPEED_GLINER)
 
-        assert result["concept_id"] == "Rank2"
-        assert result["concept_name"] == "GoodMatch"
+        assert result.concept_id == "Rank2"
+        assert result.concept_name == "GoodMatch"
         # Verify score is the vector score, not original score
-        assert result["link_confidence"] == pytest.approx(0.95)
+        assert result.link_score == pytest.approx(0.95)
 
 
 def test_linker_caching_basic(mock_sentence_transformer: MagicMock, mock_codex: MagicMock) -> None:
@@ -213,19 +221,19 @@ def test_linker_caching_basic(mock_sentence_transformer: MagicMock, mock_codex: 
         mock_cos_sim.return_value = torch.tensor([[0.9]])
 
         linker = VectorLinker(codex_client=mock_codex)
-        span = create_span("aspirin")
+        candidate = create_candidate("aspirin")
 
         # First call
-        linker.link(span)
+        linker.resolve(candidate, "context", ExtractionStrategy.SPEED_GLINER)
         assert mock_codex.search.call_count == 1
 
         # Second call (same text)
-        linker.link(span)
+        linker.resolve(candidate, "context", ExtractionStrategy.SPEED_GLINER)
         assert mock_codex.search.call_count == 1  # Should still be 1
 
         # Third call (different text)
-        span2 = create_span("tylenol")
-        linker.link(span2)
+        candidate2 = create_candidate("tylenol")
+        linker.resolve(candidate2, "context", ExtractionStrategy.SPEED_GLINER)
         assert mock_codex.search.call_count == 2
 
         # Verify cache hits via introspection (implementation detail check)
@@ -247,16 +255,16 @@ def test_linker_caching_instance_independence(mock_sentence_transformer: MagicMo
         linker1 = VectorLinker(codex_client=mock_codex)
         linker2 = VectorLinker(codex_client=mock_codex)
 
-        span = create_span("aspirin")
+        candidate = create_candidate("aspirin")
 
         # Linker 1 called
-        linker1.link(span)
+        linker1.resolve(candidate, "context", ExtractionStrategy.SPEED_GLINER)
         info1 = linker1._cached_get_candidates.cache_info()
         assert info1.hits == 0
         assert info1.misses == 1
 
         # Linker 2 called (same text) -> Should be a miss for linker2
-        linker2.link(span)
+        linker2.resolve(candidate, "context", ExtractionStrategy.SPEED_GLINER)
         info2 = linker2._cached_get_candidates.cache_info()
         assert info2.hits == 0
         assert info2.misses == 1
@@ -265,15 +273,14 @@ def test_linker_caching_instance_independence(mock_sentence_transformer: MagicMo
 def test_linker_caching_empty_bypass(mock_sentence_transformer: MagicMock, mock_codex: MagicMock) -> None:
     """Verify that empty strings bypass the cache mechanism completely."""
     linker = VectorLinker(codex_client=mock_codex)
-    span = create_span("")
+    candidate = create_candidate("")
 
-    linker.link(span)
+    linker.resolve(candidate, "context", ExtractionStrategy.SPEED_GLINER)
 
     # Check cache stats - should be untouched
     info = linker._cached_get_candidates.cache_info()
     assert info.hits == 0
     assert info.misses == 0
-
 
 def test_rerank_empty_candidates(mock_sentence_transformer: MagicMock, mock_codex: MagicMock) -> None:
     """Test _rerank directly with empty candidates to ensure defensive code coverage."""

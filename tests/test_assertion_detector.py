@@ -70,6 +70,20 @@ def test_family_history(detector: RegexBasedAssertionDetector) -> None:
         assert detector.detect(text, span, start, end) == AssertionStatus.FAMILY
 
 
+def test_history_personal(detector: RegexBasedAssertionDetector) -> None:
+    examples = [
+        "History of diabetes.",
+        "Past medical history: diabetes.",
+        "Status post diabetes treatment.",
+        "h/o diabetes",
+    ]
+    for text in examples:
+        span = "diabetes"
+        start = text.find(span)
+        end = start + len(span)
+        assert detector.detect(text, span, start, end) == AssertionStatus.HISTORY
+
+
 def test_conditional(detector: RegexBasedAssertionDetector) -> None:
     examples = [
         "Return if diabetes worsens.",
@@ -81,18 +95,6 @@ def test_conditional(detector: RegexBasedAssertionDetector) -> None:
         start = text.find(span)
         end = start + len(span)
         assert detector.detect(text, span, start, end) == AssertionStatus.CONDITIONAL
-
-
-def test_associated_with_someone_else(detector: RegexBasedAssertionDetector) -> None:
-    examples = [
-        "Spouse has diabetes.",
-        "Husband diagnosed with diabetes.",
-    ]
-    for text in examples:
-        span = "diabetes"
-        start = text.find(span)
-        end = start + len(span)
-        assert detector.detect(text, span, start, end) == AssertionStatus.ASSOCIATED_WITH_SOMEONE_ELSE
 
 
 def test_edge_cases_double_negation(detector: RegexBasedAssertionDetector) -> None:
@@ -111,13 +113,7 @@ def test_edge_cases_double_negation(detector: RegexBasedAssertionDetector) -> No
 
 
 def test_priority_overrides(detector: RegexBasedAssertionDetector) -> None:
-    # Family history should override negation?
-    # e.g., "Mother does not have diabetes" -> Technically Family + Absent.
-    # The PRD says "Assertion detects 'mother' ... sets status: ASSOCIATED_WITH_SOMEONE_ELSE / FAMILY"
-    # Usually FAMILY takes precedence over simply ABSENT in the context of the *patient*.
-    # If the mother doesn't have it, it's still a FAMILY assertion (negative family history).
-    # Current logic prioritizes FAMILY first.
-
+    # Family history should override negation
     text = "Mother does not have diabetes."
     span = "diabetes"
     start = text.find(span)

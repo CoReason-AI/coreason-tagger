@@ -15,7 +15,7 @@ import pytest
 import torch
 from coreason_tagger.codex_mock import MockCoreasonCodex
 from coreason_tagger.linker import VectorLinker
-from coreason_tagger.schema import ExtractedSpan
+from coreason_tagger.schema import EntityCandidate, ExtractionStrategy
 
 
 @pytest.fixture
@@ -68,23 +68,23 @@ def test_contextual_linking_disambiguation(mock_sentence_transformer_context: Ma
     # "Common Cold" -> [1.0, 0.0, 0.0] -> Sim 1.0
     # "Chills" -> [0.0, 1.0, 0.0] -> Sim 0.0
     text1 = "Patient caught a cold last week."
-    span1 = ExtractedSpan(text="cold", label="Condition", start=17, end=21, score=0.9, context=text1)
+    span1 = EntityCandidate(text="cold", label="Condition", start=17, end=21, confidence=0.9, source_model="mock")
 
-    result1 = linker.link(span1)
+    result1 = linker.resolve(span1, text1, ExtractionStrategy.SPEED_GLINER)
 
-    assert result1["concept_name"] == "Common Cold"
-    assert result1["concept_id"] == "SNOMED:82272006"
+    assert result1.concept_name == "Common Cold"
+    assert result1.concept_id == "SNOMED:82272006"
 
     # Case 2: Sensation Context
     # "feeling" -> [0.0, 1.0, 0.0]
     # "Common Cold" -> [1.0, 0.0, 0.0] -> Sim 0.0
     # "Chills" -> [0.0, 1.0, 0.0] -> Sim 1.0
     text2 = "Patient reports feeling cold and shivering."
-    span2 = ExtractedSpan(text="cold", label="Symptom", start=24, end=28, score=0.9, context=text2)
+    span2 = EntityCandidate(text="cold", label="Symptom", start=24, end=28, confidence=0.9, source_model="mock")
 
-    result2 = linker.link(span2)
-    assert result2["concept_name"] == "Chills"
-    assert result2["concept_id"] == "SNOMED:44077006"
+    result2 = linker.resolve(span2, text2, ExtractionStrategy.SPEED_GLINER)
+    assert result2.concept_name == "Chills"
+    assert result2.concept_id == "SNOMED:44077006"
 
 
 def test_contextual_linking_fallback(mock_sentence_transformer_context: MagicMock) -> None:
@@ -102,18 +102,18 @@ def test_contextual_linking_fallback(mock_sentence_transformer_context: MagicMoc
     # Both targets are tied at ~0.7.
     # Should pick the first candidate from search results: Common Cold.
 
-    span = ExtractedSpan(
+    span = EntityCandidate(
         text="cold",
         label="Condition",
         start=0,
         end=4,
-        score=0.9,
-        context="",  # Empty context
+        confidence=0.9,
+        source_model="mock",
     )
 
-    result = linker.link(span)
+    result = linker.resolve(span, "", ExtractionStrategy.SPEED_GLINER)
 
     # Verify it picks one of the valid targets, not Migraine
-    assert result["concept_name"] in ["Common Cold", "Chills"]
+    assert result.concept_name in ["Common Cold", "Chills"]
     # Specifically, due to search order:
-    assert result["concept_name"] == "Common Cold"
+    assert result.concept_name == "Common Cold"

@@ -15,7 +15,7 @@ import pytest
 import torch
 from coreason_tagger.codex_mock import MockCoreasonCodex
 from coreason_tagger.linker import VectorLinker
-from coreason_tagger.schema import ExtractedSpan
+from coreason_tagger.schema import EntityCandidate, ExtractionStrategy
 
 
 @pytest.fixture
@@ -91,19 +91,26 @@ def test_mixed_meanings_in_same_sentence(mock_sentence_transformer_complex: Magi
     idx1 = text.find("caught a cold") + len("caught a ")  # index of "cold"
     idx2 = text.find("feeling cold") + len("feeling ")  # index of "cold"
 
-    span1 = ExtractedSpan(text="cold", label="Condition", start=idx1, end=idx1 + 4, score=0.9, context=text)
+    c1 = EntityCandidate(
+        text="cold",
+        label="Condition",
+        start=idx1,
+        end=idx1 + 4,
+        confidence=0.9,
+        source_model="mock",
+    )
 
-    span2 = ExtractedSpan(text="cold", label="Symptom", start=idx2, end=idx2 + 4, score=0.9, context=text)
+    c2 = EntityCandidate(text="cold", label="Symptom", start=idx2, end=idx2 + 4, confidence=0.9, source_model="mock")
 
     # IF logic uses WINDOWED context (50 chars):
     # Span 1 window: "...caught a cold during..." -> Includes "caught". Excludes "feeling".
     # Span 2 window: "...reported feeling cold in..." -> Includes "feeling". Excludes "caught".
 
-    result1 = linker.link(span1)
-    result2 = linker.link(span2)
+    result1 = linker.resolve(c1, text, ExtractionStrategy.SPEED_GLINER)
+    result2 = linker.resolve(c2, text, ExtractionStrategy.SPEED_GLINER)
 
-    assert result1["concept_name"] == "Common Cold"
-    assert result2["concept_name"] == "Chills"
+    assert result1.concept_name == "Common Cold"
+    assert result2.concept_name == "Chills"
 
 
 def test_configurable_window_size(mock_sentence_transformer_complex: MagicMock) -> None:
@@ -118,14 +125,14 @@ def test_configurable_window_size(mock_sentence_transformer_complex: MagicMock) 
     text = "Patient caught a cold and later reported feeling cold."
 
     # Span 2: "feeling cold"
-    span2 = ExtractedSpan(text="cold", label="Symptom", start=49, end=53, score=0.9, context=text)
+    c2 = EntityCandidate(text="cold", label="Symptom", start=49, end=53, confidence=0.9, source_model="mock")
 
     # With massive window, it sees "caught" (infection) and "feeling" (sensation).
     # Based on our mock logic for mixed signals, it returns [0.5, 0.5, 0.0] or similar ambiguity.
     # And due to tie-breaking, it likely picks "Common Cold" (first candidate) over "Chills".
 
-    result = linker.link(span2)
+    result = linker.resolve(c2, text, ExtractionStrategy.SPEED_GLINER)
 
     # It should effectively FAIL to identify "Chills" correctly due to context pollution
     # OR be ambiguous. In this mock setup, it defaults to Common Cold on ties/mixes.
-    assert result["concept_name"] == "Common Cold"
+    assert result.concept_name == "Common Cold"

@@ -16,7 +16,7 @@ import torch
 from coreason_tagger.assertion_detector import RegexBasedAssertionDetector
 from coreason_tagger.codex_mock import MockCoreasonCodex
 from coreason_tagger.linker import VectorLinker
-from coreason_tagger.schema import AssertionStatus, ExtractedSpan
+from coreason_tagger.schema import AssertionStatus, EntityCandidate
 from coreason_tagger.tagger import CoreasonTagger
 
 
@@ -57,7 +57,7 @@ def test_story_a_family_history(mock_sentence_transformer_integration: MagicMock
     Text: "Patient's mother died of breast cancer."
     Expected:
     - NER detects "breast cancer"
-    - Assertion detects "mother" -> FAMILY_HISTORY
+    - Assertion detects "mother" -> FAMILY
     """
     text = "Patient's mother died of breast cancer."
 
@@ -65,13 +65,13 @@ def test_story_a_family_history(mock_sentence_transformer_integration: MagicMock
     # Mock NER to extract "breast cancer"
     mock_ner = MagicMock()
     mock_ner.extract.return_value = [
-        ExtractedSpan(
+        EntityCandidate(
             text="breast cancer",
             label="Condition",
             start=25,
             end=38,
-            score=0.99,
-            context=text,
+            confidence=0.99,
+            source_model="mock",
         )
     ]
 
@@ -87,7 +87,7 @@ def test_story_a_family_history(mock_sentence_transformer_integration: MagicMock
     assert len(results) == 1
     entity = results[0]
 
-    assert entity.span_text == "breast cancer"
+    assert entity.text == "breast cancer"
     assert entity.label == "Condition"
     # Ensure it linked correctly
     assert entity.concept_name == "Breast Cancer"
@@ -108,13 +108,13 @@ def test_story_b_ambiguous_drug(mock_sentence_transformer_integration: MagicMock
     # 1. Setup Dependencies
     mock_ner = MagicMock()
     mock_ner.extract.return_value = [
-        ExtractedSpan(
+        EntityCandidate(
             text="Lasix",
             label="Drug",
             start=21,
             end=26,
-            score=0.99,
-            context=text,
+            confidence=0.99,
+            source_model="mock",
         )
     ]
 
@@ -130,7 +130,7 @@ def test_story_b_ambiguous_drug(mock_sentence_transformer_integration: MagicMock
     assert len(results) == 1
     entity = results[0]
 
-    assert entity.span_text == "Lasix"
+    assert entity.text == "Lasix"
     assert entity.label == "Drug"
     # CRITICAL: Verify Linker Mapping
     assert entity.concept_name == "Furosemide"
