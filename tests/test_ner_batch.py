@@ -48,7 +48,22 @@ def test_gliner_extract_batch_success(mock_gliner_model: MagicMock) -> None:
     assert span.label == "Symptom"
     assert span.context == "Patient has fever."
 
-    mock_gliner_model.batch_predict_entities.assert_called_once_with(texts, labels)
+    mock_gliner_model.batch_predict_entities.assert_called_once_with(texts, labels, threshold=0.5)
+
+
+def test_gliner_extract_batch_with_custom_threshold(mock_gliner_model: MagicMock) -> None:
+    """Test batch extraction with a custom confidence threshold."""
+    extractor = GLiNERExtractor()
+    texts = ["Patient has fever."]
+    labels = ["Symptom"]
+    custom_threshold = 0.2
+
+    # Mock return value: Empty list of entities for the single input text
+    mock_gliner_model.batch_predict_entities.return_value = [[]]
+
+    extractor.extract_batch(texts, labels, threshold=custom_threshold)
+
+    mock_gliner_model.batch_predict_entities.assert_called_once_with(texts, labels, threshold=custom_threshold)
 
 
 def test_gliner_extract_batch_empty_input(mock_gliner_model: MagicMock) -> None:

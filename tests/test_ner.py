@@ -47,6 +47,9 @@ class TestGLiNERExtractor(unittest.TestCase):
 
         results = extractor.extract(text, labels)
 
+        # Verify that the model was called with the default threshold
+        mock_model_instance.predict_entities.assert_called_once_with(text, labels, threshold=0.5)
+
         self.assertEqual(len(results), 2)
         self.assertIsInstance(results[0], ExtractedSpan)
         self.assertEqual(results[0].text, "headache")
@@ -57,6 +60,23 @@ class TestGLiNERExtractor(unittest.TestCase):
 
         self.assertEqual(results[1].text, "ibuprofen")
         self.assertEqual(results[1].label, "Drug")
+
+    @patch("coreason_tagger.ner.GLiNER")
+    def test_extract_with_custom_threshold(self, mock_gliner_class: MagicMock) -> None:
+        """Test extraction with a custom confidence threshold."""
+        mock_model_instance = MagicMock()
+        mock_gliner_class.from_pretrained.return_value = mock_model_instance
+        mock_model_instance.predict_entities.return_value = []
+
+        extractor = GLiNERExtractor()
+        text = "some text"
+        labels = ["Symptom"]
+        custom_threshold = 0.15
+
+        extractor.extract(text, labels, threshold=custom_threshold)
+
+        # Verify that the model was called with the custom threshold
+        mock_model_instance.predict_entities.assert_called_once_with(text, labels, threshold=custom_threshold)
 
     @patch("coreason_tagger.ner.GLiNER")
     def test_extract_empty_inputs(self, mock_gliner_class: MagicMock) -> None:

@@ -57,13 +57,14 @@ class GLiNERExtractor(BaseNERExtractor):
             context=context,
         )
 
-    def extract(self, text: str, labels: list[str]) -> list[ExtractedSpan]:
+    def extract(self, text: str, labels: list[str], threshold: float = 0.5) -> list[ExtractedSpan]:
         """
         Extract entities from text using the provided labels.
 
         Args:
             text (str): The input text to process.
             labels (list[str]): A list of entity types to detect.
+            threshold (float): The confidence threshold. Defaults to 0.5.
 
         Returns:
             list[ExtractedSpan]: A list of detected entity spans.
@@ -73,17 +74,18 @@ class GLiNERExtractor(BaseNERExtractor):
 
         # GLiNER returns a list of dicts:
         # [{'start': 0, 'end': 5, 'text': '...', 'label': '...', 'score': 0.95}, ...]
-        raw_entities = self.model.predict_entities(text, labels)
+        raw_entities = self.model.predict_entities(text, labels, threshold=threshold)
 
         return [self._build_span(entity, text) for entity in raw_entities]
 
-    def extract_batch(self, texts: list[str], labels: list[str]) -> list[list[ExtractedSpan]]:
+    def extract_batch(self, texts: list[str], labels: list[str], threshold: float = 0.5) -> list[list[ExtractedSpan]]:
         """
         Extract entities from a batch of texts using the provided labels.
 
         Args:
             texts (list[str]): The list of input texts to process.
             labels (list[str]): A list of entity types to detect.
+            threshold (float): The confidence threshold. Defaults to 0.5.
 
         Returns:
             list[list[ExtractedSpan]]: A list of lists, where each inner list contains
@@ -94,7 +96,7 @@ class GLiNERExtractor(BaseNERExtractor):
 
         # Use batch_predict_entities if available.
         # batch_predict_entities returns a list of lists of dicts.
-        batch_raw_entities = self.model.batch_predict_entities(texts, labels)
+        batch_raw_entities = self.model.batch_predict_entities(texts, labels, threshold=threshold)
 
         batch_extracted_spans: list[list[ExtractedSpan]] = []
 
