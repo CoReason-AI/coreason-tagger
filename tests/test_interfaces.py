@@ -15,10 +15,10 @@ from coreason_tagger.schema import AssertionStatus, ExtractedSpan
 
 
 class ConcreteExtractor(BaseNERExtractor):
-    def extract(self, text: str, labels: List[str]) -> List[ExtractedSpan]:
+    def extract(self, text: str, labels: List[str], threshold: float = 0.5) -> List[ExtractedSpan]:
         return [ExtractedSpan(text="test", label=labels[0], start=0, end=4, score=1.0)]
 
-    def extract_batch(self, texts: List[str], labels: List[str]) -> List[List[ExtractedSpan]]:
+    def extract_batch(self, texts: List[str], labels: List[str], threshold: float = 0.5) -> List[List[ExtractedSpan]]:
         return [[ExtractedSpan(text="test", label=labels[0], start=0, end=4, score=1.0)] for _ in texts]
 
 
