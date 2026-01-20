@@ -282,6 +282,7 @@ def test_linker_caching_empty_bypass(mock_sentence_transformer: MagicMock, mock_
     assert info.hits == 0
     assert info.misses == 0
 
+
 def test_rerank_empty_candidates(mock_sentence_transformer: MagicMock, mock_codex: MagicMock) -> None:
     """Test _rerank directly with empty candidates to ensure defensive code coverage."""
     linker = VectorLinker(codex_client=mock_codex)
