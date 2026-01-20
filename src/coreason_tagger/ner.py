@@ -69,6 +69,9 @@ class GLiNERExtractor(BaseNERExtractor):
         Returns:
             list[ExtractedSpan]: A list of detected entity spans.
         """
+        if not 0.0 <= threshold <= 1.0:
+            raise ValueError(f"Threshold must be between 0.0 and 1.0, got {threshold}")
+
         if not text or not labels:
             return []
 
@@ -91,6 +94,9 @@ class GLiNERExtractor(BaseNERExtractor):
             list[list[ExtractedSpan]]: A list of lists, where each inner list contains
                                        detected entity spans for the corresponding text.
         """
+        if not 0.0 <= threshold <= 1.0:
+            raise ValueError(f"Threshold must be between 0.0 and 1.0, got {threshold}")
+
         if not texts or not labels:
             return [[] for _ in texts]
 

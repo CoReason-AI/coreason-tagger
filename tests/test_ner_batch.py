@@ -66,6 +66,21 @@ def test_gliner_extract_batch_with_custom_threshold(mock_gliner_model: MagicMock
     mock_gliner_model.batch_predict_entities.assert_called_once_with(texts, labels, threshold=custom_threshold)
 
 
+def test_gliner_extract_batch_invalid_threshold(mock_gliner_model: MagicMock) -> None:
+    """Test batch extraction with invalid threshold."""
+    extractor = GLiNERExtractor()
+    texts = ["Patient has fever."]
+    labels = ["Symptom"]
+
+    # Test > 1.0
+    with pytest.raises(ValueError, match="Threshold must be between"):
+        extractor.extract_batch(texts, labels, threshold=1.5)
+
+    # Test < 0.0
+    with pytest.raises(ValueError, match="Threshold must be between"):
+        extractor.extract_batch(texts, labels, threshold=-0.1)
+
+
 def test_gliner_extract_batch_empty_input(mock_gliner_model: MagicMock) -> None:
     """Test batch extraction with empty input list."""
     extractor = GLiNERExtractor()
