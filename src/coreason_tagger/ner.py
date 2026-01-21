@@ -8,8 +8,7 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
-import functools
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 
 from gliner import GLiNER
 
@@ -249,7 +248,9 @@ class ExtractorFactory:
     Implements the Strategy Pattern.
     """
 
-    @functools.lru_cache(maxsize=None)
+    def __init__(self) -> None:
+        self._cache: Dict[ExtractionStrategy, BaseExtractor] = {}
+
     def get_extractor(self, strategy: ExtractionStrategy) -> BaseExtractor:
         """
         Get the extractor instance for the given strategy.
@@ -260,13 +261,17 @@ class ExtractorFactory:
         Returns:
             BaseExtractor: The extractor instance.
         """
+        if strategy in self._cache:
+            return self._cache[strategy]
+
+        extractor: BaseExtractor
         if strategy == ExtractionStrategy.SPEED_GLINER:
-            return GLiNERExtractor()
+            extractor = GLiNERExtractor()
         elif strategy == ExtractionStrategy.PRECISION_NUNER:
-            return NuNERExtractor()
-        # Fallback or Todo for REASONING_LLM
-        # For now, maybe default to GLiNER or raise error?
-        # Requirement says "The agent must implement three distinct extraction strategies"
-        # Since Reasoning isn't implemented yet, we can't return it.
-        # But for audit/refactoring, we set the structure.
-        return GLiNERExtractor()  # Default
+            extractor = NuNERExtractor()
+        else:
+            # Fallback or Todo for REASONING_LLM
+            extractor = GLiNERExtractor()  # Default
+
+        self._cache[strategy] = extractor
+        return extractor
