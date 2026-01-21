@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     NER_MODEL_NAME: str = "urchade/gliner_small-v2.1"
     NUNER_MODEL_NAME: str = "numind/NuNER-Zero"
 
+    # LLM Configuration
+    LLM_MODEL_NAME: str = "gpt-4o-mini"
+    LLM_API_KEY: str | None = None
+
     # Linker Configuration
     LINKER_MODEL_NAME: str = "all-MiniLM-L6-v2"
     LINKER_CANDIDATE_TOP_K: int = 10
