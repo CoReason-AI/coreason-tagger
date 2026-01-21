@@ -9,6 +9,13 @@
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
 import os
+from typing import Any
 
 # Set APP_ENV to testing before any other modules are loaded
 os.environ["APP_ENV"] = "testing"
+
+
+# Configure pytest-asyncio to treat all async tests as asyncio-driven
+# This avoids decorating every single test with @pytest.mark.asyncio
+def pytest_configure(config: Any) -> None:
+    config.option.asyncio_mode = "auto"

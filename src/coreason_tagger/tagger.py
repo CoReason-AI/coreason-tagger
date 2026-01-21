@@ -8,6 +8,7 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
+import asyncio
 from typing import Optional
 
 from coreason_tagger.interfaces import BaseAssertionDetector, BaseLinker, BaseNERExtractor
@@ -38,7 +39,7 @@ class CoreasonTagger:
         self.assertion = assertion
         self.linker = linker
 
-    def _process_candidate(
+    async def _process_candidate(
         self, text: str, candidate: EntityCandidate, strategy: ExtractionStrategy
     ) -> Optional[LinkedEntity]:
         """
@@ -57,7 +58,7 @@ class CoreasonTagger:
             return None
 
         # 2. Contextualize (Assertion)
-        assertion_status = self.assertion.detect(
+        assertion_status = await self.assertion.detect(
             text=text,
             span_text=candidate.text,
             span_start=candidate.start,
@@ -65,7 +66,7 @@ class CoreasonTagger:
         )
 
         # 3. Link (Vector Linking)
-        linked_entity = self.linker.resolve(candidate, text, strategy)
+        linked_entity = await self.linker.resolve(candidate, text, strategy)
 
         # If linking fails (concept_id is None), we skip this entity
         if not linked_entity.concept_id:
@@ -76,7 +77,7 @@ class CoreasonTagger:
 
         return linked_entity
 
-    def tag(
+    async def tag(
         self,
         text: str,
         labels: list[str],
@@ -97,18 +98,20 @@ class CoreasonTagger:
             return []
 
         # 1. Extract (NER)
-        candidates = self.ner.extract(text, labels)
+        candidates = await self.ner.extract(text, labels)
+
+        # Process candidates concurrently
+        tasks = [self._process_candidate(text, candidate, strategy) for candidate in candidates]
+        results = await asyncio.gather(*tasks)
 
         linked_entities: list[LinkedEntity] = []
-
-        for candidate in candidates:
-            entity = self._process_candidate(text, candidate, strategy)
+        for entity in results:
             if entity:
                 linked_entities.append(entity)
 
         return linked_entities
 
-    def tag_batch(
+    async def tag_batch(
         self,
         texts: list[str],
         labels: list[str],
@@ -130,17 +133,30 @@ class CoreasonTagger:
             return []
 
         # 1. Batch Extract (NER)
-        batch_candidates = self.ner.extract_batch(texts, labels)
+        batch_candidates = await self.ner.extract_batch(texts, labels)
 
         batch_results: list[list[LinkedEntity]] = []
 
         # Process each text's candidates
-        for text, candidates in zip(texts, batch_candidates, strict=True):
-            linked_entities: list[LinkedEntity] = []
-            for candidate in candidates:
-                entity = self._process_candidate(text, candidate, strategy)
-                if entity:
-                    linked_entities.append(entity)
-            batch_results.append(linked_entities)
+        # We can parallelize the processing of candidates for each text as well
+        # but let's keep it structurally simple first.
+        # Ideally, we want to process everything concurrently.
 
-        return batch_results
+        # Create tasks for all candidates across all texts?
+        # Or process texts concurrently?
+
+        async def process_text_candidates(
+            text_input: str, candidates_input: list[EntityCandidate]
+        ) -> list[LinkedEntity]:
+            tasks = [self._process_candidate(text_input, c, strategy) for c in candidates_input]
+            results = await asyncio.gather(*tasks)
+            return [e for e in results if e]
+
+        # Use gather to process all texts concurrently after NER
+        text_tasks = []
+        for text, candidates in zip(texts, batch_candidates, strict=True):
+            text_tasks.append(process_text_candidates(text, candidates))
+
+        batch_results = await asyncio.gather(*text_tasks)
+
+        return list(batch_results)

@@ -29,7 +29,7 @@ class MockCoreasonCodex:
             "SNOMED:254837009": {"name": "Breast Cancer", "embedding": [0.8, 0.1, 0.1]},
         }
 
-    def search(self, query: str, top_k: int = 10) -> List[Dict[str, Any]]:
+    async def search(self, query: str, top_k: int = 10) -> List[Dict[str, Any]]:
         """
         Simulates a semantic search against the codex.
         Returns a list of candidate concepts.
@@ -57,7 +57,7 @@ class MockCoreasonCodex:
             results.append({"concept_id": cid, "concept_name": name, "score": score})
         return sorted(results, key=lambda x: float(x["score"]), reverse=True)[:top_k]
 
-    def get_concept(self, concept_id: str) -> Dict[str, Any]:
+    async def get_concept(self, concept_id: str) -> Dict[str, Any]:
         """
         Retrieves a concept by ID.
         """

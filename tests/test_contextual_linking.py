@@ -53,7 +53,8 @@ def mock_sentence_transformer_context() -> Generator[MagicMock, None, None]:
         yield MockClass
 
 
-def test_contextual_linking_disambiguation(mock_sentence_transformer_context: MagicMock) -> None:
+@pytest.mark.asyncio
+async def test_contextual_linking_disambiguation(mock_sentence_transformer_context: MagicMock) -> None:
     """
     Test that the linker correctly disambiguates 'Cold' based on context.
 
@@ -70,7 +71,7 @@ def test_contextual_linking_disambiguation(mock_sentence_transformer_context: Ma
     text1 = "Patient caught a cold last week."
     span1 = EntityCandidate(text="cold", label="Condition", start=17, end=21, confidence=0.9, source_model="mock")
 
-    result1 = linker.resolve(span1, text1, ExtractionStrategy.SPEED_GLINER)
+    result1 = await linker.resolve(span1, text1, ExtractionStrategy.SPEED_GLINER)
 
     assert result1.concept_name == "Common Cold"
     assert result1.concept_id == "SNOMED:82272006"
@@ -82,12 +83,13 @@ def test_contextual_linking_disambiguation(mock_sentence_transformer_context: Ma
     text2 = "Patient reports feeling cold and shivering."
     span2 = EntityCandidate(text="cold", label="Symptom", start=24, end=28, confidence=0.9, source_model="mock")
 
-    result2 = linker.resolve(span2, text2, ExtractionStrategy.SPEED_GLINER)
+    result2 = await linker.resolve(span2, text2, ExtractionStrategy.SPEED_GLINER)
     assert result2.concept_name == "Chills"
     assert result2.concept_id == "SNOMED:44077006"
 
 
-def test_contextual_linking_fallback(mock_sentence_transformer_context: MagicMock) -> None:
+@pytest.mark.asyncio
+async def test_contextual_linking_fallback(mock_sentence_transformer_context: MagicMock) -> None:
     """
     Test that if context is missing, it falls back to the text itself.
     """
@@ -111,7 +113,7 @@ def test_contextual_linking_fallback(mock_sentence_transformer_context: MagicMoc
         source_model="mock",
     )
 
-    result = linker.resolve(span, "", ExtractionStrategy.SPEED_GLINER)
+    result = await linker.resolve(span, "", ExtractionStrategy.SPEED_GLINER)
 
     # Verify it picks one of the valid targets, not Migraine
     assert result.concept_name in ["Common Cold", "Chills"]

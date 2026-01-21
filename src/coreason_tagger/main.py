@@ -8,6 +8,7 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
+import asyncio
 import json
 from typing import List, Optional
 
@@ -58,15 +59,19 @@ def tag(
         labels = ["Symptom", "Drug", "Condition"]
 
     tagger = get_tagger()
-    try:
-        results = tagger.tag(text, labels)
-        # Convert Pydantic models to list of dicts
-        output = [entity.model_dump() for entity in results]
-        typer.echo(json.dumps(output, indent=2))
-    except Exception as e:
-        logger.exception("Failed to process text")
-        typer.secho(f"Error: {e}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1) from e
+
+    async def run_tagging() -> None:
+        try:
+            results = await tagger.tag(text, labels)
+            # Convert Pydantic models to list of dicts
+            output = [entity.model_dump() for entity in results]
+            typer.echo(json.dumps(output, indent=2))
+        except Exception as e:
+            logger.exception("Failed to process text")
+            typer.secho(f"Error: {e}", fg=typer.colors.RED, err=True)
+            raise typer.Exit(code=1) from e
+
+    asyncio.run(run_tagging())
 
 
 if __name__ == "__main__":

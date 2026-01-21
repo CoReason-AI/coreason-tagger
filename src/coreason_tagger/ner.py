@@ -8,6 +8,7 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
+import asyncio
 from typing import Any, Optional
 
 from gliner import GLiNER
@@ -69,7 +70,7 @@ class GLiNERExtractor(BaseNERExtractor):
         if not 0.0 <= threshold <= 1.0:
             raise ValueError(f"Threshold must be between 0.0 and 1.0, got {threshold}")
 
-    def extract(self, text: str, labels: list[str], threshold: float = 0.5) -> list[EntityCandidate]:
+    async def extract(self, text: str, labels: list[str], threshold: float = 0.5) -> list[EntityCandidate]:
         """
         Extract entities from text using the provided labels.
 
@@ -88,11 +89,17 @@ class GLiNERExtractor(BaseNERExtractor):
 
         # GLiNER returns a list of dicts:
         # [{'start': 0, 'end': 5, 'text': '...', 'label': '...', 'score': 0.95}, ...]
-        raw_entities = self.model.predict_entities(text, labels, threshold=threshold)
+        loop = asyncio.get_running_loop()
+        # Use lambda to pass kwargs correctly to run_in_executor
+        raw_entities = await loop.run_in_executor(
+            None, lambda: self.model.predict_entities(text, labels, threshold=threshold)
+        )
 
         return [self._build_candidate(entity) for entity in raw_entities]
 
-    def extract_batch(self, texts: list[str], labels: list[str], threshold: float = 0.5) -> list[list[EntityCandidate]]:
+    async def extract_batch(
+        self, texts: list[str], labels: list[str], threshold: float = 0.5
+    ) -> list[list[EntityCandidate]]:
         """
         Extract entities from a batch of texts using the provided labels.
 
@@ -112,7 +119,11 @@ class GLiNERExtractor(BaseNERExtractor):
 
         # Use batch_predict_entities if available.
         # batch_predict_entities returns a list of lists of dicts.
-        batch_raw_entities = self.model.batch_predict_entities(texts, labels, threshold=threshold)
+        loop = asyncio.get_running_loop()
+        # Use lambda to pass kwargs correctly to run_in_executor
+        batch_raw_entities = await loop.run_in_executor(
+            None, lambda: self.model.batch_predict_entities(texts, labels, threshold=threshold)
+        )
 
         batch_extracted_candidates: list[list[EntityCandidate]] = []
 

@@ -24,7 +24,8 @@ def mock_gliner_model() -> Generator[MagicMock, None, None]:
         yield mock_model
 
 
-def test_gliner_extract_batch_success(mock_gliner_model: MagicMock) -> None:
+@pytest.mark.asyncio
+async def test_gliner_extract_batch_success(mock_gliner_model: MagicMock) -> None:
     """Test standard batch extraction."""
     extractor = GLiNERExtractor()
     texts = ["Patient has fever.", "No symptoms reported."]
@@ -36,7 +37,7 @@ def test_gliner_extract_batch_success(mock_gliner_model: MagicMock) -> None:
         [],
     ]
 
-    results = extractor.extract_batch(texts, labels)
+    results = await extractor.extract_batch(texts, labels)
 
     assert len(results) == 2
     assert len(results[0]) == 1
@@ -52,7 +53,8 @@ def test_gliner_extract_batch_success(mock_gliner_model: MagicMock) -> None:
     mock_gliner_model.batch_predict_entities.assert_called_once_with(texts, labels, threshold=0.5)
 
 
-def test_gliner_extract_batch_with_custom_threshold(mock_gliner_model: MagicMock) -> None:
+@pytest.mark.asyncio
+async def test_gliner_extract_batch_with_custom_threshold(mock_gliner_model: MagicMock) -> None:
     """Test batch extraction with a custom confidence threshold."""
     extractor = GLiNERExtractor()
     texts = ["Patient has fever."]
@@ -62,12 +64,13 @@ def test_gliner_extract_batch_with_custom_threshold(mock_gliner_model: MagicMock
     # Mock return value: Empty list of entities for the single input text
     mock_gliner_model.batch_predict_entities.return_value = [[]]
 
-    extractor.extract_batch(texts, labels, threshold=custom_threshold)
+    await extractor.extract_batch(texts, labels, threshold=custom_threshold)
 
     mock_gliner_model.batch_predict_entities.assert_called_once_with(texts, labels, threshold=custom_threshold)
 
 
-def test_gliner_extract_batch_invalid_threshold(mock_gliner_model: MagicMock) -> None:
+@pytest.mark.asyncio
+async def test_gliner_extract_batch_invalid_threshold(mock_gliner_model: MagicMock) -> None:
     """Test batch extraction with invalid threshold."""
     extractor = GLiNERExtractor()
     texts = ["Patient has fever."]
@@ -75,32 +78,35 @@ def test_gliner_extract_batch_invalid_threshold(mock_gliner_model: MagicMock) ->
 
     # Test > 1.0
     with pytest.raises(ValueError, match="Threshold must be between"):
-        extractor.extract_batch(texts, labels, threshold=1.5)
+        await extractor.extract_batch(texts, labels, threshold=1.5)
 
     # Test < 0.0
     with pytest.raises(ValueError, match="Threshold must be between"):
-        extractor.extract_batch(texts, labels, threshold=-0.1)
+        await extractor.extract_batch(texts, labels, threshold=-0.1)
 
 
-def test_gliner_extract_batch_empty_input(mock_gliner_model: MagicMock) -> None:
+@pytest.mark.asyncio
+async def test_gliner_extract_batch_empty_input(mock_gliner_model: MagicMock) -> None:
     """Test batch extraction with empty input list."""
     extractor = GLiNERExtractor()
-    results = extractor.extract_batch([], ["Symptom"])
+    results = await extractor.extract_batch([], ["Symptom"])
     assert results == []
     mock_gliner_model.batch_predict_entities.assert_not_called()
 
 
-def test_gliner_extract_batch_no_labels(mock_gliner_model: MagicMock) -> None:
+@pytest.mark.asyncio
+async def test_gliner_extract_batch_no_labels(mock_gliner_model: MagicMock) -> None:
     """Test batch extraction with no labels."""
     extractor = GLiNERExtractor()
     texts = ["Some text"]
-    results = extractor.extract_batch(texts, [])
+    results = await extractor.extract_batch(texts, [])
     # Should return empty list for each text
     assert results == [[]]
     mock_gliner_model.batch_predict_entities.assert_not_called()
 
 
-def test_gliner_extract_batch_order_preservation(mock_gliner_model: MagicMock) -> None:
+@pytest.mark.asyncio
+async def test_gliner_extract_batch_order_preservation(mock_gliner_model: MagicMock) -> None:
     """Test that output order matches input order strictly."""
     extractor = GLiNERExtractor()
     texts = ["One", "Two", "Three"]
@@ -112,7 +118,7 @@ def test_gliner_extract_batch_order_preservation(mock_gliner_model: MagicMock) -
         [{"text": "Three", "label": "Label", "start": 0, "end": 5, "score": 0.8}],
     ]
 
-    results = extractor.extract_batch(texts, labels)
+    results = await extractor.extract_batch(texts, labels)
 
     assert len(results) == 3
     assert results[0][0].text == "One"
@@ -120,7 +126,8 @@ def test_gliner_extract_batch_order_preservation(mock_gliner_model: MagicMock) -
     assert results[2][0].text == "Three"
 
 
-def test_gliner_extract_batch_duplicate_inputs(mock_gliner_model: MagicMock) -> None:
+@pytest.mark.asyncio
+async def test_gliner_extract_batch_duplicate_inputs(mock_gliner_model: MagicMock) -> None:
     """Test batch extraction with duplicate input texts to ensure 1:1 mapping."""
     extractor = GLiNERExtractor()
     texts = ["Dup", "Dup"]
@@ -132,7 +139,7 @@ def test_gliner_extract_batch_duplicate_inputs(mock_gliner_model: MagicMock) -> 
         [{"text": "Dup", "label": "Label", "start": 0, "end": 3, "score": 0.95}],
     ]
 
-    results = extractor.extract_batch(texts, labels)
+    results = await extractor.extract_batch(texts, labels)
 
     assert len(results) == 2
     # Verify both have results
@@ -142,7 +149,8 @@ def test_gliner_extract_batch_duplicate_inputs(mock_gliner_model: MagicMock) -> 
     assert results[0][0] is not results[1][0]
 
 
-def test_gliner_extract_batch_complex_mix(mock_gliner_model: MagicMock) -> None:
+@pytest.mark.asyncio
+async def test_gliner_extract_batch_complex_mix(mock_gliner_model: MagicMock) -> None:
     """Test a mix of valid texts, empty strings, and special characters."""
     extractor = GLiNERExtractor()
     texts = ["Normal text", "", "Special: @#$%", "Multiple types"]
@@ -158,7 +166,7 @@ def test_gliner_extract_batch_complex_mix(mock_gliner_model: MagicMock) -> None:
         ],
     ]
 
-    results = extractor.extract_batch(texts, labels)
+    results = await extractor.extract_batch(texts, labels)
 
     assert len(results) == 4
     # 1. Normal
@@ -175,7 +183,8 @@ def test_gliner_extract_batch_complex_mix(mock_gliner_model: MagicMock) -> None:
     assert results[3][1].label == "TypeB"
 
 
-def test_gliner_extract_batch_overlapping_spans(mock_gliner_model: MagicMock) -> None:
+@pytest.mark.asyncio
+async def test_gliner_extract_batch_overlapping_spans(mock_gliner_model: MagicMock) -> None:
     """Test that overlapping spans (nested entities) are preserved."""
     extractor = GLiNERExtractor()
     texts = ["Patient has lung cancer."]
@@ -189,7 +198,7 @@ def test_gliner_extract_batch_overlapping_spans(mock_gliner_model: MagicMock) ->
         ]
     ]
 
-    results = extractor.extract_batch(texts, labels)
+    results = await extractor.extract_batch(texts, labels)
 
     assert len(results) == 1
     assert len(results[0]) == 2
@@ -202,7 +211,8 @@ def test_gliner_extract_batch_overlapping_spans(mock_gliner_model: MagicMock) ->
     assert "lung" in texts_found
 
 
-def test_gliner_extract_batch_length_mismatch(mock_gliner_model: MagicMock) -> None:
+@pytest.mark.asyncio
+async def test_gliner_extract_batch_length_mismatch(mock_gliner_model: MagicMock) -> None:
     """
     Test that ValueError is raised if the number of results returned by the model
     does not match the number of input texts (validating strict=True in zip).
@@ -217,4 +227,4 @@ def test_gliner_extract_batch_length_mismatch(mock_gliner_model: MagicMock) -> N
     ]
 
     with pytest.raises(ValueError):
-        extractor.extract_batch(texts, labels)
+        await extractor.extract_batch(texts, labels)

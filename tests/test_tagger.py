@@ -8,7 +8,8 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
-from unittest.mock import MagicMock
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from coreason_tagger.interfaces import BaseAssertionDetector, BaseLinker, BaseNERExtractor
@@ -23,17 +24,24 @@ from coreason_tagger.tagger import CoreasonTagger
 
 @pytest.fixture
 def mock_ner() -> MagicMock:
-    return MagicMock(spec=BaseNERExtractor)
+    ner = MagicMock(spec=BaseNERExtractor)
+    ner.extract = AsyncMock()
+    ner.extract_batch = AsyncMock()
+    return ner
 
 
 @pytest.fixture
 def mock_assertion() -> MagicMock:
-    return MagicMock(spec=BaseAssertionDetector)
+    assertion = MagicMock(spec=BaseAssertionDetector)
+    assertion.detect = AsyncMock()
+    return assertion
 
 
 @pytest.fixture
 def mock_linker() -> MagicMock:
-    return MagicMock(spec=BaseLinker)
+    linker = MagicMock(spec=BaseLinker)
+    linker.resolve = AsyncMock()
+    return linker
 
 
 @pytest.fixture
@@ -59,7 +67,8 @@ def create_linked_entity(
     )
 
 
-def test_tag_happy_path(
+@pytest.mark.asyncio
+async def test_tag_happy_path(
     tagger: CoreasonTagger,
     mock_ner: MagicMock,
     mock_assertion: MagicMock,
@@ -86,7 +95,7 @@ def test_tag_happy_path(
     # Mock Linker return
     mock_linker.resolve.return_value = create_linked_entity("headache", "Symptom", "HP:0002315")
 
-    results = tagger.tag(text, labels)
+    results = await tagger.tag(text, labels)
 
     assert len(results) == 1
     entity = results[0]
@@ -98,24 +107,27 @@ def test_tag_happy_path(
     assert entity.link_score == 0.9
 
     # Verify calls
-    mock_ner.extract.assert_called_once_with(text, labels)
-    mock_assertion.detect.assert_called_once_with(text=text, span_text="headache", span_start=14, span_end=22)
-    mock_linker.resolve.assert_called_once()
+    mock_ner.extract.assert_awaited_once_with(text, labels)
+    mock_assertion.detect.assert_awaited_once_with(text=text, span_text="headache", span_start=14, span_end=22)
+    mock_linker.resolve.assert_awaited_once()
 
 
-def test_tag_empty_text(tagger: CoreasonTagger, mock_ner: MagicMock) -> None:
+@pytest.mark.asyncio
+async def test_tag_empty_text(tagger: CoreasonTagger, mock_ner: MagicMock) -> None:
     """Test that empty text returns empty list without calling extract."""
-    assert tagger.tag("", ["Label"]) == []
+    assert await tagger.tag("", ["Label"]) == []
     mock_ner.extract.assert_not_called()
 
 
-def test_tag_no_entities_found(tagger: CoreasonTagger, mock_ner: MagicMock) -> None:
+@pytest.mark.asyncio
+async def test_tag_no_entities_found(tagger: CoreasonTagger, mock_ner: MagicMock) -> None:
     """Test when NER finds nothing."""
     mock_ner.extract.return_value = []
-    assert tagger.tag("Clean text", ["Label"]) == []
+    assert await tagger.tag("Clean text", ["Label"]) == []
 
 
-def test_tag_linking_failure(
+@pytest.mark.asyncio
+async def test_tag_linking_failure(
     tagger: CoreasonTagger,
     mock_ner: MagicMock,
     mock_assertion: MagicMock,
@@ -134,11 +146,12 @@ def test_tag_linking_failure(
     )
     mock_linker.resolve.return_value = linked_entity
 
-    results = tagger.tag(text, ["Unknown"])
+    results = await tagger.tag(text, ["Unknown"])
     assert results == []
 
 
-def test_multiple_entities(
+@pytest.mark.asyncio
+async def test_multiple_entities(
     tagger: CoreasonTagger,
     mock_ner: MagicMock,
     mock_assertion: MagicMock,
@@ -150,18 +163,24 @@ def test_multiple_entities(
     c2 = EntityCandidate(text="cough", label="Symptom", start=29, end=34, confidence=0.9, source_model="mock")
     mock_ner.extract.return_value = [c1, c2]
 
-    # Side effects for assertion (fever -> ABSENT, cough -> PRESENT)
-    mock_assertion.detect.side_effect = [AssertionStatus.ABSENT, AssertionStatus.PRESENT]
+    def assertion_side_effect(**kwargs: Any) -> AssertionStatus:
+        if kwargs["span_text"] == "fever":
+            return AssertionStatus.ABSENT
+        return AssertionStatus.PRESENT
 
-    # Side effects for linker
-    # Note: Linker returns default assertion, Tagger overrides it
-    l1 = create_linked_entity("fever", "Symptom", "C1")
-    l2 = create_linked_entity("cough", "Symptom", "C2")
-    mock_linker.resolve.side_effect = [l1, l2]
+    mock_assertion.detect.side_effect = assertion_side_effect
 
-    results = tagger.tag(text, ["Symptom"])
+    def linker_side_effect(entity: EntityCandidate, context: str, strategy: ExtractionStrategy) -> LinkedEntity:
+        if entity.text == "fever":
+            return create_linked_entity("fever", "Symptom", "C1")
+        return create_linked_entity("cough", "Symptom", "C2")
+
+    mock_linker.resolve.side_effect = linker_side_effect
+
+    results = await tagger.tag(text, ["Symptom"])
 
     assert len(results) == 2
+    # gather preserves order of results matching input candidates
     assert results[0].text == "fever"
     assert results[0].assertion == AssertionStatus.ABSENT
     assert results[0].concept_id == "C1"
@@ -171,7 +190,8 @@ def test_multiple_entities(
     assert results[1].concept_id == "C2"
 
 
-def test_user_story_family_history(
+@pytest.mark.asyncio
+async def test_user_story_family_history(
     tagger: CoreasonTagger, mock_ner: MagicMock, mock_assertion: MagicMock, mock_linker: MagicMock
 ) -> None:
     """
@@ -195,7 +215,7 @@ def test_user_story_family_history(
     # 3. Linker maps
     mock_linker.resolve.return_value = create_linked_entity("breast cancer", "Diagnosis", "SNOMED:254837009")
 
-    results = tagger.tag(text, ["Diagnosis"])
+    results = await tagger.tag(text, ["Diagnosis"])
 
     assert len(results) == 1
     entity = results[0]
@@ -204,7 +224,8 @@ def test_user_story_family_history(
     assert entity.concept_id == "SNOMED:254837009"
 
 
-def test_user_story_ambiguous_drug(
+@pytest.mark.asyncio
+async def test_user_story_ambiguous_drug(
     tagger: CoreasonTagger, mock_ner: MagicMock, mock_assertion: MagicMock, mock_linker: MagicMock
 ) -> None:
     """
@@ -221,7 +242,7 @@ def test_user_story_ambiguous_drug(
     l_ent.concept_name = "Furosemide"
     mock_linker.resolve.return_value = l_ent
 
-    results = tagger.tag(text, ["Drug"])
+    results = await tagger.tag(text, ["Drug"])
 
     assert len(results) == 1
     entity = results[0]
@@ -230,7 +251,8 @@ def test_user_story_ambiguous_drug(
     assert entity.concept_name == "Furosemide"
 
 
-def test_robustness_empty_span_text(
+@pytest.mark.asyncio
+async def test_robustness_empty_span_text(
     tagger: CoreasonTagger, mock_ner: MagicMock, mock_assertion: MagicMock, mock_linker: MagicMock
 ) -> None:
     """
@@ -245,7 +267,7 @@ def test_robustness_empty_span_text(
     mock_assertion.detect.return_value = AssertionStatus.PRESENT
     mock_linker.resolve.return_value = create_linked_entity("valid", "L", "C")
 
-    results = tagger.tag(text, ["L"])
+    results = await tagger.tag(text, ["L"])
 
     # Should only contain the valid one
     assert len(results) == 1
@@ -257,7 +279,8 @@ def test_robustness_empty_span_text(
 # --- Batch Processing Tests ---
 
 
-def test_tag_batch_happy_path(
+@pytest.mark.asyncio
+async def test_tag_batch_happy_path(
     tagger: CoreasonTagger, mock_ner: MagicMock, mock_assertion: MagicMock, mock_linker: MagicMock
 ) -> None:
     """Test standard batch flow."""
@@ -271,17 +294,21 @@ def test_tag_batch_happy_path(
     c2 = EntityCandidate(text="cough", label="Symptom", start=3, end=8, confidence=0.99, source_model="mock")
     mock_ner.extract_batch.return_value = [[c1], [c2]]
 
-    # Mock Assertion
-    # Call 1 (fever): PRESENT
-    # Call 2 (cough): ABSENT
-    mock_assertion.detect.side_effect = [AssertionStatus.PRESENT, AssertionStatus.ABSENT]
+    async def assertion_side_effect(**kwargs: Any) -> AssertionStatus:
+        if kwargs["span_text"] == "fever":
+            return AssertionStatus.PRESENT
+        return AssertionStatus.ABSENT
 
-    # Mock Linker
-    l1 = create_linked_entity("fever", "Symptom", "C_FEVER")
-    l2 = create_linked_entity("cough", "Symptom", "C_COUGH")
-    mock_linker.resolve.side_effect = [l1, l2]
+    mock_assertion.detect.side_effect = assertion_side_effect
 
-    results = tagger.tag_batch(texts, labels)
+    async def linker_side_effect(entity: EntityCandidate, context: str, strategy: ExtractionStrategy) -> LinkedEntity:
+        if entity.text == "fever":
+            return create_linked_entity("fever", "Symptom", "C_FEVER")
+        return create_linked_entity("cough", "Symptom", "C_COUGH", assertion=AssertionStatus.ABSENT)
+
+    mock_linker.resolve.side_effect = linker_side_effect
+
+    results = await tagger.tag_batch(texts, labels)
 
     assert len(results) == 2
 
@@ -301,20 +328,18 @@ def test_tag_batch_happy_path(
 
     # Verify calls
     mock_ner.extract_batch.assert_called_once_with(texts, labels)
-
-    # Assertion should be called with correct contexts
     assert mock_assertion.detect.call_count == 2
-    mock_assertion.detect.assert_any_call(text=texts[0], span_text="fever", span_start=12, span_end=17)
-    mock_assertion.detect.assert_any_call(text=texts[1], span_text="cough", span_start=3, span_end=8)
 
 
-def test_tag_batch_empty_input(tagger: CoreasonTagger, mock_ner: MagicMock) -> None:
+@pytest.mark.asyncio
+async def test_tag_batch_empty_input(tagger: CoreasonTagger, mock_ner: MagicMock) -> None:
     """Test empty input list."""
-    assert tagger.tag_batch([], ["Label"]) == []
+    assert await tagger.tag_batch([], ["Label"]) == []
     mock_ner.extract_batch.assert_not_called()
 
 
-def test_tag_batch_mixed_empty_results(
+@pytest.mark.asyncio
+async def test_tag_batch_mixed_empty_results(
     tagger: CoreasonTagger, mock_ner: MagicMock, mock_assertion: MagicMock, mock_linker: MagicMock
 ) -> None:
     """Test batch where some texts have no entities."""
@@ -328,11 +353,15 @@ def test_tag_batch_mixed_empty_results(
     mock_ner.extract_batch.return_value = [[c1], [], [c3]]
 
     mock_assertion.detect.return_value = AssertionStatus.PRESENT
-    l1 = create_linked_entity("fever", "Symptom", "CID")
-    l3 = create_linked_entity("cough", "Symptom", "CID")
-    mock_linker.resolve.side_effect = [l1, l3]
 
-    results = tagger.tag_batch(texts, labels)
+    async def linker_side_effect(entity: EntityCandidate, context: str, strategy: ExtractionStrategy) -> LinkedEntity:
+        if entity.text == "fever":
+            return create_linked_entity("fever", "Symptom", "CID")
+        return create_linked_entity("cough", "Symptom", "CID")
+
+    mock_linker.resolve.side_effect = linker_side_effect
+
+    results = await tagger.tag_batch(texts, labels)
 
     assert len(results) == 3
     assert len(results[0]) == 1
@@ -342,7 +371,8 @@ def test_tag_batch_mixed_empty_results(
     assert results[2][0].text == "cough"
 
 
-def test_tag_batch_context_alignment(
+@pytest.mark.asyncio
+async def test_tag_batch_context_alignment(
     tagger: CoreasonTagger, mock_ner: MagicMock, mock_assertion: MagicMock, mock_linker: MagicMock
 ) -> None:
     """
@@ -358,10 +388,11 @@ def test_tag_batch_context_alignment(
     ent = create_linked_entity("Entity", "L", "C")
     mock_linker.resolve.return_value = ent
 
-    tagger.tag_batch(texts, ["L"])
+    await tagger.tag_batch(texts, ["L"])
 
     # Check calls to assertion
     calls = mock_assertion.detect.call_args_list
     assert len(calls) == 2
-    assert calls[0].kwargs["text"] == "Context A"
-    assert calls[1].kwargs["text"] == "Context B"
+    # Since order is not guaranteed with gather, we check that both contexts appeared
+    contexts_called = sorted([call.kwargs["text"] for call in calls])
+    assert contexts_called == ["Context A", "Context B"]

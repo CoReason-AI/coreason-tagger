@@ -24,13 +24,13 @@ class CodexClient(Protocol):
     Protocol defining the interface for the Codex client.
     """
 
-    def search(self, query: str, top_k: int = 10) -> List[Dict[str, Any]]:
+    async def search(self, query: str, top_k: int = 10) -> List[Dict[str, Any]]:
         """
         Search for concepts in the codex.
         """
         ...
 
-    def get_concept(self, concept_id: str) -> Dict[str, Any]:
+    async def get_concept(self, concept_id: str) -> Dict[str, Any]:
         """
         Retrieve a specific concept by ID.
         """
@@ -41,7 +41,7 @@ class BaseAssertionDetector(ABC):
     """Abstract base class for assertion detection strategies."""
 
     @abstractmethod
-    def detect(self, text: str, span_text: str, span_start: int, span_end: int) -> AssertionStatus:
+    async def detect(self, text: str, span_text: str, span_start: int, span_end: int) -> AssertionStatus:
         """
         Determine the assertion status of an entity within a given context.
 
@@ -61,7 +61,7 @@ class BaseNERExtractor(ABC):
     """Abstract base class for NER extraction strategies."""
 
     @abstractmethod
-    def extract(self, text: str, labels: List[str], threshold: float = 0.5) -> List[EntityCandidate]:
+    async def extract(self, text: str, labels: List[str], threshold: float = 0.5) -> List[EntityCandidate]:
         """
         Extract entities from text using the provided labels.
 
@@ -76,7 +76,9 @@ class BaseNERExtractor(ABC):
         pass  # pragma: no cover
 
     @abstractmethod
-    def extract_batch(self, texts: List[str], labels: List[str], threshold: float = 0.5) -> List[List[EntityCandidate]]:
+    async def extract_batch(
+        self, texts: List[str], labels: List[str], threshold: float = 0.5
+    ) -> List[List[EntityCandidate]]:
         """
         Extract entities from a batch of texts using the provided labels.
 
@@ -96,7 +98,7 @@ class BaseLinker(ABC):
     """Abstract base class for entity linking strategies."""
 
     @abstractmethod
-    def resolve(self, entity: EntityCandidate, context: str, strategy: ExtractionStrategy) -> LinkedEntity:
+    async def resolve(self, entity: EntityCandidate, context: str, strategy: ExtractionStrategy) -> LinkedEntity:
         """
         Link an extracted entity to a concept in the codex.
         """

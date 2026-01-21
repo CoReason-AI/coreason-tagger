@@ -70,7 +70,8 @@ def mock_sentence_transformer_complex() -> Generator[MagicMock, None, None]:
         yield MockClass
 
 
-def test_mixed_meanings_in_same_sentence(mock_sentence_transformer_complex: MagicMock) -> None:
+@pytest.mark.asyncio
+async def test_mixed_meanings_in_same_sentence(mock_sentence_transformer_complex: MagicMock) -> None:
     """
     Test that the linker can disambiguate two identical mentions in the same document
     if it correctly uses windowing/local context.
@@ -106,14 +107,15 @@ def test_mixed_meanings_in_same_sentence(mock_sentence_transformer_complex: Magi
     # Span 1 window: "...caught a cold during..." -> Includes "caught". Excludes "feeling".
     # Span 2 window: "...reported feeling cold in..." -> Includes "feeling". Excludes "caught".
 
-    result1 = linker.resolve(c1, text, ExtractionStrategy.SPEED_GLINER)
-    result2 = linker.resolve(c2, text, ExtractionStrategy.SPEED_GLINER)
+    result1 = await linker.resolve(c1, text, ExtractionStrategy.SPEED_GLINER)
+    result2 = await linker.resolve(c2, text, ExtractionStrategy.SPEED_GLINER)
 
     assert result1.concept_name == "Common Cold"
     assert result2.concept_name == "Chills"
 
 
-def test_configurable_window_size(mock_sentence_transformer_complex: MagicMock) -> None:
+@pytest.mark.asyncio
+async def test_configurable_window_size(mock_sentence_transformer_complex: MagicMock) -> None:
     """
     Test that the window size is configurable and affects the output.
     If we set a massive window size, it should fail to disambiguate (like the original failure case).
@@ -131,7 +133,7 @@ def test_configurable_window_size(mock_sentence_transformer_complex: MagicMock) 
     # Based on our mock logic for mixed signals, it returns [0.5, 0.5, 0.0] or similar ambiguity.
     # And due to tie-breaking, it likely picks "Common Cold" (first candidate) over "Chills".
 
-    result = linker.resolve(c2, text, ExtractionStrategy.SPEED_GLINER)
+    result = await linker.resolve(c2, text, ExtractionStrategy.SPEED_GLINER)
 
     # It should effectively FAIL to identify "Chills" correctly due to context pollution
     # OR be ambiguous. In this mock setup, it defaults to Common Cold on ties/mixes.
