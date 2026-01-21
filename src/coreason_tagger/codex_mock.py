@@ -32,6 +32,13 @@ class MockCoreasonCodex:
             # Added for complex linking tests
             "SNOMED:82272006": {"concept_id": "SNOMED:82272006", "concept_name": "Common Cold"},
             "SNOMED:44077006": {"concept_id": "SNOMED:44077006", "concept_name": "Chills"},
+            # Added for missing drugs support (Aspirin, Ibuprofen)
+            # Adapting user request to existing schema (concept_id, concept_name)
+            "RxNorm:1191": {"concept_id": "RxNorm:1191", "concept_name": "Aspirin"},
+            "RxNorm:5640": {"concept_id": "RxNorm:5640", "concept_name": "Ibuprofen"},
+            # Ensure Headache and Migraine are present (User listed them)
+            "SNOMED:37796009": {"concept_id": "SNOMED:37796009", "concept_name": "Migraine"},
+            "SNOMED:25064002": {"concept_id": "SNOMED:25064002", "concept_name": "Headache"},
         }
         # Simple synonym map for search simulation
         self.synonyms = {
@@ -43,14 +50,11 @@ class MockCoreasonCodex:
             "asthma attack": "SNOMED:195967001",
             "cold": "SNOMED:82272006",  # Default to common cold
             "shivering": "SNOMED:44077006",
-            "head ache": "SNOMED:49727002",  # Map head ache to cough just for test hit? No.
-            # "head ache" is used in test_linker.py integration test.
-            # It expects a hit. Previous mock might have had "Headache".
-            # Let's add Headache.
+            "head ache": "HP:0002315",  # Used in existing tests
+            "headache": "HP:0002315",
         }
+        # Add HP headache as well to support existing tests while adding SNOMED headache
         self.concepts["HP:0002315"] = {"concept_id": "HP:0002315", "concept_name": "Headache"}
-        self.synonyms["head ache"] = "HP:0002315"
-        self.synonyms["headache"] = "HP:0002315"
 
     async def search(self, query: str, top_k: int = 10) -> List[Dict[str, Any]]:
         """
