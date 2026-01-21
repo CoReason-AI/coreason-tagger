@@ -9,10 +9,11 @@
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
 from typing import Generator
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import torch
+
 from coreason_tagger.assertion_detector import RegexBasedAssertionDetector
 from coreason_tagger.codex_mock import MockCoreasonCodex
 from coreason_tagger.linker import VectorLinker
@@ -61,7 +62,8 @@ def mock_sentence_transformer_complex() -> Generator[MagicMock, None, None]:
         yield MockClass
 
 
-def test_mixed_assertion_in_sentence(mock_sentence_transformer_complex: MagicMock) -> None:
+@pytest.mark.asyncio
+async def test_mixed_assertion_in_sentence(mock_sentence_transformer_complex: MagicMock) -> None:
     """
     Test a complex sentence where two entities have different assertion statuses.
     Text: "Mother has diabetes, but patient denies hypertension."
@@ -72,7 +74,7 @@ def test_mixed_assertion_in_sentence(mock_sentence_transformer_complex: MagicMoc
     text = "Mother has diabetes, but patient denies hypertension."
 
     # Mock NER
-    mock_ner = MagicMock()
+    mock_ner = AsyncMock()
     mock_ner.extract.return_value = [
         EntityCandidate(
             text="diabetes",
@@ -97,7 +99,7 @@ def test_mixed_assertion_in_sentence(mock_sentence_transformer_complex: MagicMoc
     linker = VectorLinker(codex_client=codex_client)
     tagger = CoreasonTagger(ner=mock_ner, assertion=assertion_detector, linker=linker)
 
-    results = tagger.tag(text, labels=["Condition"])
+    results = await tagger.tag(text, labels=["Condition"])
 
     assert len(results) == 2
 
@@ -114,7 +116,8 @@ def test_mixed_assertion_in_sentence(mock_sentence_transformer_complex: MagicMoc
     assert hypertension_entity.assertion == AssertionStatus.ABSENT
 
 
-def test_duplicate_term_disambiguation(mock_sentence_transformer_complex: MagicMock) -> None:
+@pytest.mark.asyncio
+async def test_duplicate_term_disambiguation(mock_sentence_transformer_complex: MagicMock) -> None:
     """
     Test disambiguating identical terms in the same text based on local context.
     Text: "Patient caught a cold and is feeling cold."
@@ -124,7 +127,7 @@ def test_duplicate_term_disambiguation(mock_sentence_transformer_complex: MagicM
     """
     text = "Patient caught a cold and is feeling cold."
 
-    mock_ner = MagicMock()
+    mock_ner = AsyncMock()
     mock_ner.extract.return_value = [
         EntityCandidate(
             text="cold",
@@ -150,7 +153,7 @@ def test_duplicate_term_disambiguation(mock_sentence_transformer_complex: MagicM
     linker = VectorLinker(codex_client=codex_client, window_size=15)
     tagger = CoreasonTagger(ner=mock_ner, assertion=assertion_detector, linker=linker)
 
-    results = tagger.tag(text, labels=["Condition", "Symptom"])
+    results = await tagger.tag(text, labels=["Condition", "Symptom"])
 
     assert len(results) == 2
 

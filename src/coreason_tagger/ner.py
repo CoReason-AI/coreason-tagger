@@ -8,17 +8,18 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
+import asyncio
 from typing import Any, Optional
 
 from gliner import GLiNER
 from loguru import logger
 
 from coreason_tagger.config import settings
-from coreason_tagger.interfaces import BaseNERExtractor
+from coreason_tagger.interfaces import BaseExtractor
 from coreason_tagger.schema import EntityCandidate
 
 
-class GLiNERExtractor(BaseNERExtractor):
+class GLiNERExtractor(BaseExtractor):
     """
     Zero-Shot NER Extractor using the GLiNER library.
     Wraps the underlying model to provide a clean interface for extracting entities.
@@ -33,9 +34,20 @@ class GLiNERExtractor(BaseNERExtractor):
                                         If None, uses the value from settings.NER_MODEL_NAME.
         """
         self.model_name = model_name or settings.NER_MODEL_NAME
+        self.model: Optional[GLiNER] = None
+
+    async def load_model(self) -> None:
+        """
+        Lazy loading of weights to VRAM.
+        Running in executor to avoid blocking the loop.
+        """
+        if self.model is not None:
+            return
+
         logger.info(f"Initializing GLiNERExtractor with model: {self.model_name}")
-        # Load the model. Note: This might download weights on first run.
-        self.model = GLiNER.from_pretrained(self.model_name)
+        loop = asyncio.get_running_loop()
+        # GLiNER.from_pretrained can trigger downloads, so run in executor
+        self.model = await loop.run_in_executor(None, GLiNER.from_pretrained, self.model_name)
 
     def _build_candidate(self, entity: dict[str, Any]) -> EntityCandidate:
         """
@@ -69,7 +81,7 @@ class GLiNERExtractor(BaseNERExtractor):
         if not 0.0 <= threshold <= 1.0:
             raise ValueError(f"Threshold must be between 0.0 and 1.0, got {threshold}")
 
-    def extract(self, text: str, labels: list[str], threshold: float = 0.5) -> list[EntityCandidate]:
+    async def extract(self, text: str, labels: list[str], threshold: float = 0.5) -> list[EntityCandidate]:
         """
         Extract entities from text using the provided labels.
 
@@ -86,13 +98,23 @@ class GLiNERExtractor(BaseNERExtractor):
         if not text or not labels:
             return []
 
+        if self.model is None:
+            await self.load_model()
+
         # GLiNER returns a list of dicts:
         # [{'start': 0, 'end': 5, 'text': '...', 'label': '...', 'score': 0.95}, ...]
-        raw_entities = self.model.predict_entities(text, labels, threshold=threshold)
+        loop = asyncio.get_running_loop()
+        # predict_entities is blocking, run in executor
+        raw_entities = await loop.run_in_executor(
+            None,
+            lambda: self.model.predict_entities(text, labels, threshold=threshold),  # type: ignore
+        )
 
         return [self._build_candidate(entity) for entity in raw_entities]
 
-    def extract_batch(self, texts: list[str], labels: list[str], threshold: float = 0.5) -> list[list[EntityCandidate]]:
+    async def extract_batch(
+        self, texts: list[str], labels: list[str], threshold: float = 0.5
+    ) -> list[list[EntityCandidate]]:
         """
         Extract entities from a batch of texts using the provided labels.
 
@@ -110,9 +132,17 @@ class GLiNERExtractor(BaseNERExtractor):
         if not texts or not labels:
             return [[] for _ in texts]
 
+        if self.model is None:
+            await self.load_model()
+
         # Use batch_predict_entities if available.
         # batch_predict_entities returns a list of lists of dicts.
-        batch_raw_entities = self.model.batch_predict_entities(texts, labels, threshold=threshold)
+        loop = asyncio.get_running_loop()
+        # batch_predict_entities is blocking, run in executor
+        batch_raw_entities = await loop.run_in_executor(
+            None,
+            lambda: self.model.batch_predict_entities(texts, labels, threshold=threshold),  # type: ignore
+        )
 
         batch_extracted_candidates: list[list[EntityCandidate]] = []
 

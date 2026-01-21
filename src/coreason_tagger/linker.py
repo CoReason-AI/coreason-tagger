@@ -8,7 +8,7 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
-import functools
+import asyncio
 from typing import Any, Dict, List, Optional
 
 from sentence_transformers import SentenceTransformer, util
@@ -54,20 +54,32 @@ class VectorLinker(BaseLinker):
         # Note: In production, this should be lazy-loaded or managed by a model registry.
         self.model = SentenceTransformer(self.model_name)
 
-        # Create an instance-level cache for candidate generation.
-        # We cache only the retrieval step, not the re-ranking step,
-        # because re-ranking is now context-dependent.
-        self._cached_get_candidates = functools.lru_cache(maxsize=1024)(self._get_candidates_impl)
+        # L1 Cache (In-Memory)
+        # Replacing functools.lru_cache with manual dict since we are now async
+        self._cache: Dict[str, List[Dict[str, Any]]] = {}
+        self._cache_size = 1024
 
-    def _get_candidates_impl(self, text: str) -> List[Dict[str, Any]]:
+    async def _get_candidates_impl(self, text: str) -> List[Dict[str, Any]]:
         """
-        Implementation of candidate generation using Codex.
+        Implementation of candidate generation using Codex with manual caching.
         """
+        if text in self._cache:
+            return self._cache[text]
+
         # Step 1: Candidate Generation (using Codex's search)
-        candidates: List[Dict[str, Any]] = self.codex_client.search(text, top_k=self.candidate_top_k)
+        candidates: List[Dict[str, Any]] = await self.codex_client.search(text, top_k=self.candidate_top_k)
+
+        # Update cache
+        if len(self._cache) >= self._cache_size:
+            # Simple eviction: clear 10%
+            keys_to_remove = list(self._cache.keys())[: int(self._cache_size * 0.1)]
+            for k in keys_to_remove:
+                del self._cache[k]
+        self._cache[text] = candidates
+
         return candidates
 
-    def _rerank(self, query_text: str, candidates: List[Dict[str, Any]]) -> Dict[str, Any]:
+    async def _rerank(self, query_text: str, candidates: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         Perform semantic re-ranking using the Bi-Encoder.
         """
@@ -75,15 +87,23 @@ class VectorLinker(BaseLinker):
             return {}
 
         # Step 2: Semantic Re-ranking
+        loop = asyncio.get_running_loop()
+
         # Encode the query (mention OR context)
-        query_embedding = self.model.encode(query_text, convert_to_tensor=True)
+        query_embedding = await loop.run_in_executor(
+            None, lambda: self.model.encode(query_text, convert_to_tensor=True)
+        )
 
         # Encode the candidates (definitions/names)
         # We use the 'concept_name' for encoding.
         candidate_names = [str(c.get("concept_name", "")) for c in candidates]
-        candidate_embeddings = self.model.encode(candidate_names, convert_to_tensor=True)
+        candidate_embeddings = await loop.run_in_executor(
+            None, lambda: self.model.encode(candidate_names, convert_to_tensor=True)
+        )
 
         # Compute cosine similarity
+        # util.cos_sim is CPU bound but usually fast enough on small vectors.
+        # If very large, move to executor. Keeping on loop for now as it uses torch ops.
         cosine_scores = util.cos_sim(query_embedding, candidate_embeddings)[0]
 
         # Find the best match
@@ -121,7 +141,7 @@ class VectorLinker(BaseLinker):
 
         return LinkedEntity(**base_data, strategy_used=strategy)
 
-    def resolve(self, entity: EntityCandidate, context: str, strategy: ExtractionStrategy) -> LinkedEntity:
+    async def resolve(self, entity: EntityCandidate, context: str, strategy: ExtractionStrategy) -> LinkedEntity:
         """
         Link an extracted entity to a concept in the codex.
 
@@ -144,7 +164,7 @@ class VectorLinker(BaseLinker):
             return self._build_linked_entity(entity, strategy)
 
         # Step 1: Get Candidates (Cached based on mention text)
-        candidates = self._cached_get_candidates(text)
+        candidates = await self._get_candidates_impl(text)
 
         if not candidates:
             return self._build_linked_entity(entity, strategy)
@@ -159,7 +179,7 @@ class VectorLinker(BaseLinker):
             end_idx = min(len(context), entity.end + self.window_size)
             query_text = context[start_idx:end_idx]
 
-        best_match = self._rerank(query_text, candidates)
+        best_match = await self._rerank(query_text, candidates)
 
         if not best_match:  # pragma: no cover
             return self._build_linked_entity(entity, strategy)

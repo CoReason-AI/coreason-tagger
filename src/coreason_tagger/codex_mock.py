@@ -13,52 +13,93 @@ from typing import Any, Dict, List
 
 class MockCoreasonCodex:
     """
-    Mock implementation of the coreason-codex interface.
-    This simulates the ontology source and vector retrieval capabilities.
+    Mock implementation of the Coreason Codex client for testing and local development.
+    Simulates semantic search and concept retrieval.
     """
 
     def __init__(self) -> None:
-        self._concepts: Dict[str, Dict[str, Any]] = {
-            "SNOMED:37796009": {"name": "Migraine", "embedding": [0.1, 0.2, 0.3]},
-            "RxNorm:4603": {"name": "Furosemide", "embedding": [0.4, 0.5, 0.6]},
-            "SNOMED:25064002": {"name": "Headache", "embedding": [0.1, 0.2, 0.4]},
-            # Ambiguous terms for testing contextual linking
-            "SNOMED:82272006": {"name": "Common Cold", "embedding": [0.2, 0.2, 0.2]},  # Infection
-            "SNOMED:44077006": {"name": "Chills", "embedding": [0.9, 0.9, 0.9]},  # Sensation
-            # Added for Integration Stories
-            "SNOMED:254837009": {"name": "Breast Cancer", "embedding": [0.8, 0.1, 0.1]},
+        self.concepts = {
+            "RxNorm:161": {"concept_id": "RxNorm:161", "concept_name": "Acetaminophen"},
+            "RxNorm:4603": {"concept_id": "RxNorm:4603", "concept_name": "Furosemide"},
+            "SNOMED:22298006": {"concept_id": "SNOMED:22298006", "concept_name": "Myocardial Infarction"},
+            "SNOMED:195967001": {"concept_id": "SNOMED:195967001", "concept_name": "Asthma"},
+            "SNOMED:254837009": {"concept_id": "SNOMED:254837009", "concept_name": "Breast Cancer"},
+            "SNOMED:73211009": {"concept_id": "SNOMED:73211009", "concept_name": "Diabetes"},
+            "SNOMED:38341003": {"concept_id": "SNOMED:38341003", "concept_name": "Hypertension"},
+            "SNOMED:49727002": {"concept_id": "SNOMED:49727002", "concept_name": "Cough"},
+            "SNOMED:36971009": {"concept_id": "SNOMED:36971009", "concept_name": "Sinusitis"},
+            "SNOMED:68566005": {"concept_id": "SNOMED:68566005", "concept_name": "Urinary tract infection"},
+            # Added for complex linking tests
+            "SNOMED:82272006": {"concept_id": "SNOMED:82272006", "concept_name": "Common Cold"},
+            "SNOMED:44077006": {"concept_id": "SNOMED:44077006", "concept_name": "Chills"},
         }
+        # Simple synonym map for search simulation
+        self.synonyms = {
+            "tylenol": "RxNorm:161",
+            "paracetamol": "RxNorm:161",
+            "lasix": "RxNorm:4603",
+            "heart attack": "SNOMED:22298006",
+            "mi": "SNOMED:22298006",
+            "asthma attack": "SNOMED:195967001",
+            "cold": "SNOMED:82272006",  # Default to common cold
+            "shivering": "SNOMED:44077006",
+            "head ache": "SNOMED:49727002",  # Map head ache to cough just for test hit? No.
+            # "head ache" is used in test_linker.py integration test.
+            # It expects a hit. Previous mock might have had "Headache".
+            # Let's add Headache.
+        }
+        self.concepts["HP:0002315"] = {"concept_id": "HP:0002315", "concept_name": "Headache"}
+        self.synonyms["head ache"] = "HP:0002315"
+        self.synonyms["headache"] = "HP:0002315"
 
-    def search(self, query: str, top_k: int = 10) -> List[Dict[str, Any]]:
+    async def search(self, query: str, top_k: int = 10) -> List[Dict[str, Any]]:
         """
-        Simulates a semantic search against the codex.
-        Returns a list of candidate concepts.
+        Simulate search. Returns exact matches or synonym matches.
+        Also returns some random candidates to simulate "dense retrieval noise" for testing re-ranking.
         """
-        results: List[Dict[str, Any]] = []
-        query_lower = query.lower()
-        for cid, data in self._concepts.items():
-            name = str(data["name"])
-            name_lower = name.lower()
+        results = []
+        query_lower = query.lower().strip()
 
-            # Simple keyword matching logic for the mock
-            score = 0.5
-            if query_lower in name_lower or name_lower in query_lower:
-                score = 0.9
+        # 1. Check exact ID match
+        if query in self.concepts:
+            results.append(self.concepts[query])
 
-            # Special handling for "Cold" to return both meanings
-            if query_lower == "cold":
-                if cid in ["SNOMED:82272006", "SNOMED:44077006"]:
-                    score = 0.9
+        # 2. Check Synonyms
+        if query_lower in self.synonyms:
+            concept_id = self.synonyms[query_lower]
+            results.append(self.concepts[concept_id])
 
-            # Special handling for "Lasix" -> Furosemide
-            if query_lower == "lasix" and name_lower == "furosemide":
-                score = 0.9
+        # 3. Check Name match (partial)
+        for concept in self.concepts.values():
+            if query_lower in str(concept["concept_name"]).lower():
+                results.append(concept)
 
-            results.append({"concept_id": cid, "concept_name": name, "score": score})
-        return sorted(results, key=lambda x: float(x["score"]), reverse=True)[:top_k]
+        # 4. Add some "noise" candidates if results are few, to test re-ranking
+        # (Only if we have results, to simulate retrieving "related" things)
+        # OR if we are searching for "cold", ensure we return both Common Cold and Chills to allow re-ranking
+        if "cold" in query_lower:
+            results.append(self.concepts["SNOMED:82272006"])  # Common Cold
+            results.append(self.concepts["SNOMED:44077006"])  # Chills
 
-    def get_concept(self, concept_id: str) -> Dict[str, Any]:
-        """
-        Retrieves a concept by ID.
-        """
-        return self._concepts.get(concept_id, {})
+        if results:
+            for concept in self.concepts.values():
+                if concept not in results:
+                    results.append(concept)
+                    if len(results) >= top_k:
+                        break
+
+        # Deduplicate
+        seen = set()
+        unique_results = []
+        for r in results:
+            if r["concept_id"] not in seen:
+                unique_results.append(r)
+                seen.add(r["concept_id"])
+
+        return unique_results[:top_k]
+
+    async def get_concept(self, concept_id: str) -> Dict[str, Any]:
+        """Retrieve concept by ID."""
+        if concept_id in self.concepts:
+            return self.concepts[concept_id]
+        return {}

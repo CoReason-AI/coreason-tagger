@@ -113,7 +113,7 @@ class RegexBasedAssertionDetector(BaseAssertionDetector):
 
         return text[start_idx:end_idx].strip()
 
-    def detect(self, text: str, span_text: str, span_start: int, span_end: int) -> AssertionStatus:
+    async def detect(self, text: str, span_text: str, span_start: int, span_end: int) -> AssertionStatus:
         """
         Detect assertion status by analyzing the window of text around the entity.
         Currently analyzes the local clause context.

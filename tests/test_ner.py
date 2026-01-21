@@ -8,29 +8,49 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
-import unittest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from coreason_tagger.ner import GLiNERExtractor
 from coreason_tagger.schema import EntityCandidate
 
 
-class TestGLiNERExtractor(unittest.TestCase):
+@pytest.mark.asyncio
+class TestGLiNERExtractor:
     """Test suite for GLiNERExtractor."""
 
     @patch("coreason_tagger.ner.GLiNER")
-    def test_initialization(self, mock_gliner_class: MagicMock) -> None:
+    async def test_initialization(self, mock_gliner_class: MagicMock) -> None:
         """Test that the model is initialized with the correct name."""
         mock_model_instance = MagicMock()
         mock_gliner_class.from_pretrained.return_value = mock_model_instance
 
         extractor = GLiNERExtractor(model_name="test-model")
+        # Load explicitly
+        await extractor.load_model()
 
         mock_gliner_class.from_pretrained.assert_called_once_with("test-model")
-        self.assertEqual(extractor.model, mock_model_instance)
+        assert extractor.model == mock_model_instance
 
     @patch("coreason_tagger.ner.GLiNER")
-    def test_extract_valid_entities(self, mock_gliner_class: MagicMock) -> None:
+    async def test_load_model_idempotency(self, mock_gliner_class: MagicMock) -> None:
+        """Test that load_model does not reload if model is already loaded."""
+        mock_model_instance = MagicMock()
+        mock_gliner_class.from_pretrained.return_value = mock_model_instance
+
+        extractor = GLiNERExtractor(model_name="test-model")
+
+        # First load
+        await extractor.load_model()
+        mock_gliner_class.from_pretrained.assert_called_once()
+
+        # Second load - should do nothing
+        await extractor.load_model()
+        mock_gliner_class.from_pretrained.assert_called_once()
+
+    @patch("coreason_tagger.ner.GLiNER")
+    async def test_extract_valid_entities(self, mock_gliner_class: MagicMock) -> None:
         """Test extraction with valid return values from the model."""
         mock_model_instance = MagicMock()
         mock_gliner_class.from_pretrained.return_value = mock_model_instance
@@ -45,24 +65,24 @@ class TestGLiNERExtractor(unittest.TestCase):
         text = "I have a headache and took ibuprofen."
         labels = ["Symptom", "Drug"]
 
-        results = extractor.extract(text, labels)
+        results = await extractor.extract(text, labels)
 
         # Verify that the model was called with the default threshold
         mock_model_instance.predict_entities.assert_called_once_with(text, labels, threshold=0.5)
 
-        self.assertEqual(len(results), 2)
-        self.assertIsInstance(results[0], EntityCandidate)
-        self.assertEqual(results[0].text, "headache")
-        self.assertEqual(results[0].label, "Symptom")
-        self.assertEqual(results[0].start, 0)
-        self.assertEqual(results[0].end, 8)
-        self.assertEqual(results[0].confidence, 0.95)
+        assert len(results) == 2
+        assert isinstance(results[0], EntityCandidate)
+        assert results[0].text == "headache"
+        assert results[0].label == "Symptom"
+        assert results[0].start == 0
+        assert results[0].end == 8
+        assert results[0].confidence == 0.95
 
-        self.assertEqual(results[1].text, "ibuprofen")
-        self.assertEqual(results[1].label, "Drug")
+        assert results[1].text == "ibuprofen"
+        assert results[1].label == "Drug"
 
     @patch("coreason_tagger.ner.GLiNER")
-    def test_extract_with_custom_threshold(self, mock_gliner_class: MagicMock) -> None:
+    async def test_extract_with_custom_threshold(self, mock_gliner_class: MagicMock) -> None:
         """Test extraction with a custom confidence threshold."""
         mock_model_instance = MagicMock()
         mock_gliner_class.from_pretrained.return_value = mock_model_instance
@@ -73,13 +93,13 @@ class TestGLiNERExtractor(unittest.TestCase):
         labels = ["Symptom"]
         custom_threshold = 0.15
 
-        extractor.extract(text, labels, threshold=custom_threshold)
+        await extractor.extract(text, labels, threshold=custom_threshold)
 
         # Verify that the model was called with the custom threshold
         mock_model_instance.predict_entities.assert_called_once_with(text, labels, threshold=custom_threshold)
 
     @patch("coreason_tagger.ner.GLiNER")
-    def test_extract_invalid_threshold(self, mock_gliner_class: MagicMock) -> None:
+    async def test_extract_invalid_threshold(self, mock_gliner_class: MagicMock) -> None:
         """Test validation of threshold parameter."""
         mock_model_instance = MagicMock()
         mock_gliner_class.from_pretrained.return_value = mock_model_instance
@@ -89,15 +109,15 @@ class TestGLiNERExtractor(unittest.TestCase):
         labels = ["Label"]
 
         # Test threshold > 1.0
-        with self.assertRaisesRegex(ValueError, "Threshold must be between"):
-            extractor.extract(text, labels, threshold=1.1)
+        with pytest.raises(ValueError, match="Threshold must be between"):
+            await extractor.extract(text, labels, threshold=1.1)
 
         # Test threshold < 0.0
-        with self.assertRaisesRegex(ValueError, "Threshold must be between"):
-            extractor.extract(text, labels, threshold=-0.1)
+        with pytest.raises(ValueError, match="Threshold must be between"):
+            await extractor.extract(text, labels, threshold=-0.1)
 
     @patch("coreason_tagger.ner.GLiNER")
-    def test_extract_boundary_thresholds(self, mock_gliner_class: MagicMock) -> None:
+    async def test_extract_boundary_thresholds(self, mock_gliner_class: MagicMock) -> None:
         """Test extraction with boundary thresholds (0.0 and 1.0)."""
         mock_model_instance = MagicMock()
         mock_gliner_class.from_pretrained.return_value = mock_model_instance
@@ -108,15 +128,15 @@ class TestGLiNERExtractor(unittest.TestCase):
         labels = ["Label"]
 
         # Threshold 0.0
-        extractor.extract(text, labels, threshold=0.0)
+        await extractor.extract(text, labels, threshold=0.0)
         mock_model_instance.predict_entities.assert_called_with(text, labels, threshold=0.0)
 
         # Threshold 1.0
-        extractor.extract(text, labels, threshold=1.0)
+        await extractor.extract(text, labels, threshold=1.0)
         mock_model_instance.predict_entities.assert_called_with(text, labels, threshold=1.0)
 
     @patch("coreason_tagger.ner.GLiNER")
-    def test_extract_empty_inputs(self, mock_gliner_class: MagicMock) -> None:
+    async def test_extract_empty_inputs(self, mock_gliner_class: MagicMock) -> None:
         """Test extraction with empty text or labels."""
         mock_model_instance = MagicMock()
         mock_gliner_class.from_pretrained.return_value = mock_model_instance
@@ -124,31 +144,31 @@ class TestGLiNERExtractor(unittest.TestCase):
         extractor = GLiNERExtractor()
 
         # Empty text
-        self.assertEqual(extractor.extract("", ["Symptom"]), [])
+        assert await extractor.extract("", ["Symptom"]) == []
 
         # Empty labels
-        self.assertEqual(extractor.extract("some text", []), [])
+        assert await extractor.extract("some text", []) == []
 
         # Both empty
-        self.assertEqual(extractor.extract("", []), [])
+        assert await extractor.extract("", []) == []
 
         # Ensure model was not called for these cases
         mock_model_instance.predict_entities.assert_not_called()
 
     @patch("coreason_tagger.ner.GLiNER")
-    def test_extract_no_entities_found(self, mock_gliner_class: MagicMock) -> None:
+    async def test_extract_no_entities_found(self, mock_gliner_class: MagicMock) -> None:
         """Test extraction when model finds nothing."""
         mock_model_instance = MagicMock()
         mock_gliner_class.from_pretrained.return_value = mock_model_instance
         mock_model_instance.predict_entities.return_value = []
 
         extractor = GLiNERExtractor()
-        results = extractor.extract("Nothing here", ["Symptom"])
+        results = await extractor.extract("Nothing here", ["Symptom"])
 
-        self.assertEqual(results, [])
+        assert results == []
 
     @patch("coreason_tagger.ner.GLiNER")
-    def test_extract_overlapping_entities(self, mock_gliner_class: MagicMock) -> None:
+    async def test_extract_overlapping_entities(self, mock_gliner_class: MagicMock) -> None:
         """Test extraction of overlapping entities (e.g., 'lung cancer' and 'cancer')."""
         mock_model_instance = MagicMock()
         mock_gliner_class.from_pretrained.return_value = mock_model_instance
@@ -159,17 +179,17 @@ class TestGLiNERExtractor(unittest.TestCase):
         ]
 
         extractor = GLiNERExtractor()
-        results = extractor.extract("He has lung cancer", ["Condition"])
+        results = await extractor.extract("He has lung cancer", ["Condition"])
 
-        self.assertEqual(len(results), 2)
-        self.assertEqual(results[0].text, "lung cancer")
-        self.assertEqual(results[1].text, "cancer")
+        assert len(results) == 2
+        assert results[0].text == "lung cancer"
+        assert results[1].text == "cancer"
         # Check proper indices
-        self.assertEqual(results[0].start, 10)
-        self.assertEqual(results[1].start, 15)
+        assert results[0].start == 10
+        assert results[1].start == 15
 
     @patch("coreason_tagger.ner.GLiNER")
-    def test_extract_complex_scenario(self, mock_gliner_class: MagicMock) -> None:
+    async def test_extract_complex_scenario(self, mock_gliner_class: MagicMock) -> None:
         """Test extraction with multiple entity types in one sentence."""
         mock_model_instance = MagicMock()
         mock_gliner_class.from_pretrained.return_value = mock_model_instance
@@ -185,16 +205,16 @@ class TestGLiNERExtractor(unittest.TestCase):
         text = "Patient took ibuprofen for headache and Lisinopril for hypertension."
         labels = ["Drug", "Symptom", "Condition"]
 
-        results = extractor.extract(text, labels)
+        results = await extractor.extract(text, labels)
 
-        self.assertEqual(len(results), 4)
-        self.assertEqual(results[0].label, "Drug")
-        self.assertEqual(results[1].label, "Symptom")
-        self.assertEqual(results[2].label, "Drug")
-        self.assertEqual(results[3].label, "Condition")
+        assert len(results) == 4
+        assert results[0].label == "Drug"
+        assert results[1].label == "Symptom"
+        assert results[2].label == "Drug"
+        assert results[3].label == "Condition"
 
     @patch("coreason_tagger.ner.GLiNER")
-    def test_extract_special_characters(self, mock_gliner_class: MagicMock) -> None:
+    async def test_extract_special_characters(self, mock_gliner_class: MagicMock) -> None:
         """Test extraction from text containing special characters and emojis."""
         mock_model_instance = MagicMock()
         mock_gliner_class.from_pretrained.return_value = mock_model_instance
@@ -206,14 +226,14 @@ class TestGLiNERExtractor(unittest.TestCase):
 
         extractor = GLiNERExtractor()
         text = "Diagnosis: COVID-19 🦠, fever 🌡️."
-        results = extractor.extract(text, ["Condition", "Symptom"])
+        results = await extractor.extract(text, ["Condition", "Symptom"])
 
-        self.assertEqual(len(results), 2)
-        self.assertEqual(results[0].text, "COVID-19")
-        self.assertEqual(results[1].text, "fever")
+        assert len(results) == 2
+        assert results[0].text == "COVID-19"
+        assert results[1].text == "fever"
 
     @patch("coreason_tagger.ner.GLiNER")
-    def test_extract_low_confidence(self, mock_gliner_class: MagicMock) -> None:
+    async def test_extract_low_confidence(self, mock_gliner_class: MagicMock) -> None:
         """Test that entities with low confidence scores are preserved (not filtered)."""
         mock_model_instance = MagicMock()
         mock_gliner_class.from_pretrained.return_value = mock_model_instance
@@ -223,7 +243,7 @@ class TestGLiNERExtractor(unittest.TestCase):
         ]
 
         extractor = GLiNERExtractor()
-        results = extractor.extract("maybe a cold", ["Condition"])
+        results = await extractor.extract("maybe a cold", ["Condition"])
 
-        self.assertEqual(len(results), 1)
-        self.assertEqual(results[0].confidence, 0.15)
+        assert len(results) == 1
+        assert results[0].confidence == 0.15
