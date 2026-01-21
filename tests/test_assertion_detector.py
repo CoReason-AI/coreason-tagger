@@ -9,7 +9,6 @@
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
 import pytest
-
 from coreason_tagger.assertion_detector import RegexBasedAssertionDetector
 from coreason_tagger.schema import AssertionStatus
 

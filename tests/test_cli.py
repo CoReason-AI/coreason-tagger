@@ -11,12 +11,11 @@
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from typer.testing import CliRunner
-
 from coreason_tagger import __version__
 from coreason_tagger.main import app, get_tagger
 from coreason_tagger.schema import AssertionStatus, ExtractionStrategy, LinkedEntity
 from coreason_tagger.tagger import CoreasonTagger
+from typer.testing import CliRunner
 
 runner = CliRunner()
 
