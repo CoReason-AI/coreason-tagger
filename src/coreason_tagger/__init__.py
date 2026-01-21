@@ -9,7 +9,7 @@
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
 from coreason_tagger.assertion_detector import RegexBasedAssertionDetector
-from coreason_tagger.interfaces import BaseAssertionDetector, BaseLinker, BaseNERExtractor
+from coreason_tagger.interfaces import BaseAssertionDetector, BaseExtractor, BaseLinker
 from coreason_tagger.ner import GLiNERExtractor
 from coreason_tagger.schema import (
     AssertionStatus,
@@ -22,7 +22,7 @@ __version__ = "0.1.0"
 
 __all__ = [
     "BaseAssertionDetector",
-    "BaseNERExtractor",
+    "BaseExtractor",
     "BaseLinker",
     "GLiNERExtractor",
     "RegexBasedAssertionDetector",

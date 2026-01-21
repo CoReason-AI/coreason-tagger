@@ -18,7 +18,8 @@ def detector() -> RegexBasedAssertionDetector:
     return RegexBasedAssertionDetector()
 
 
-def test_negated_history(detector: RegexBasedAssertionDetector) -> None:
+@pytest.mark.asyncio
+async def test_negated_history(detector: RegexBasedAssertionDetector) -> None:
     """
     Test "No history of" edge case.
     Should be ABSENT, not HISTORY.
@@ -30,10 +31,11 @@ def test_negated_history(detector: RegexBasedAssertionDetector) -> None:
 
     # If HISTORY priority > ABSENT, this would fail (return HISTORY).
     # We expect ABSENT (Negated).
-    assert detector.detect(text, span, start, end) == AssertionStatus.ABSENT
+    assert await detector.detect(text, span, start, end) == AssertionStatus.ABSENT
 
 
-def test_conditional_history(detector: RegexBasedAssertionDetector) -> None:
+@pytest.mark.asyncio
+async def test_conditional_history(detector: RegexBasedAssertionDetector) -> None:
     """
     Test "If history of" edge case.
     Should be CONDITIONAL, not HISTORY.
@@ -43,10 +45,11 @@ def test_conditional_history(detector: RegexBasedAssertionDetector) -> None:
     start = text.find(span)
     end = start + len(span)
 
-    assert detector.detect(text, span, start, end) == AssertionStatus.CONDITIONAL
+    assert await detector.detect(text, span, start, end) == AssertionStatus.CONDITIONAL
 
 
-def test_negated_family_history(detector: RegexBasedAssertionDetector) -> None:
+@pytest.mark.asyncio
+async def test_negated_family_history(detector: RegexBasedAssertionDetector) -> None:
     """
     Test "No family history of" edge case.
     Should be FAMILY (as it pertains to family context), or ABSENT?
@@ -59,10 +62,11 @@ def test_negated_family_history(detector: RegexBasedAssertionDetector) -> None:
     start = text.find(span)
     end = start + len(span)
 
-    assert detector.detect(text, span, start, end) == AssertionStatus.FAMILY
+    assert await detector.detect(text, span, start, end) == AssertionStatus.FAMILY
 
 
-def test_assertion_priority_complex(detector: RegexBasedAssertionDetector) -> None:
+@pytest.mark.asyncio
+async def test_assertion_priority_complex(detector: RegexBasedAssertionDetector) -> None:
     """
     Test a mix of triggers.
     "Possible history of diabetes" -> POSSIBLE? HISTORY?
@@ -100,4 +104,4 @@ def test_assertion_priority_complex(detector: RegexBasedAssertionDetector) -> No
     # So Order: FAMILY > CONDITIONAL > ABSENT > POSSIBLE > HISTORY > PRESENT.
 
     # Let's test this hypothesis.
-    assert detector.detect(text, span, start, end) == AssertionStatus.POSSIBLE
+    assert await detector.detect(text, span, start, end) == AssertionStatus.POSSIBLE

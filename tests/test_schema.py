@@ -92,7 +92,7 @@ def test_linked_entity_invalid_assertion() -> None:
             confidence=0.9,
             source_model="test",
             strategy_used=ExtractionStrategy.SPEED_GLINER,
-            assertion="INVALID_STATUS",  # type: ignore
+            assertion="INVALID_STATUS",
         )
 
 
@@ -105,7 +105,7 @@ def test_batch_request_model() -> None:
 
     # Invalid types
     with pytest.raises(ValidationError):
-        BatchRequest(texts="not a list", labels=[])  # type: ignore
+        BatchRequest(texts="not a list", labels=[])
 
     # Missing fields
     with pytest.raises(ValidationError):

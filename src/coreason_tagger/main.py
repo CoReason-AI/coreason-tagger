@@ -8,6 +8,7 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
+import asyncio
 import json
 from typing import List, Optional
 
@@ -20,7 +21,7 @@ from coreason_tagger.codex_mock import MockCoreasonCodex
 from coreason_tagger.linker import VectorLinker
 from coreason_tagger.ner import GLiNERExtractor
 from coreason_tagger.tagger import CoreasonTagger
-from coreason_tagger.utils.logger import logger
+from coreason_tagger.utils.logger import logger, setup_logger
 
 app = typer.Typer(help="CoReason Tagger CLI")
 
@@ -45,6 +46,20 @@ def version() -> None:
     typer.echo(f"coreason-tagger version: {__version__}")
 
 
+async def _tag_async(text: str, labels: List[str]) -> None:
+    """Async helper for the tag command."""
+    tagger = get_tagger()
+    try:
+        results = await tagger.tag(text, labels)
+        # Convert Pydantic models to list of dicts
+        output = [entity.model_dump() for entity in results]
+        typer.echo(json.dumps(output, indent=2))
+    except Exception as e:
+        logger.exception("Failed to process text")
+        typer.secho(f"Error: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from e
+
+
 @app.command()
 def tag(
     text: str,
@@ -57,17 +72,9 @@ def tag(
         # Default labels if none provided
         labels = ["Symptom", "Drug", "Condition"]
 
-    tagger = get_tagger()
-    try:
-        results = tagger.tag(text, labels)
-        # Convert Pydantic models to list of dicts
-        output = [entity.model_dump() for entity in results]
-        typer.echo(json.dumps(output, indent=2))
-    except Exception as e:
-        logger.exception("Failed to process text")
-        typer.secho(f"Error: {e}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1) from e
+    asyncio.run(_tag_async(text, labels))
 
 
-if __name__ == "__main__":
-    app()  # pragma: no cover
+if __name__ == "__main__":  # pragma: no cover
+    setup_logger()
+    app()
