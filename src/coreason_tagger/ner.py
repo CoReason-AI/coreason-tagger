@@ -12,10 +12,10 @@ import asyncio
 from typing import Any, Optional
 
 from gliner import GLiNER
-from loguru import logger
 
 from coreason_tagger.config import settings
 from coreason_tagger.interfaces import BaseExtractor
+from coreason_tagger.registry import get_gliner_model
 from coreason_tagger.schema import EntityCandidate
 
 
@@ -38,16 +38,12 @@ class GLiNERExtractor(BaseExtractor):
 
     async def load_model(self) -> None:
         """
-        Lazy loading of weights to VRAM.
-        Running in executor to avoid blocking the loop.
+        Lazy loading of weights to VRAM via the registry (Singleton).
         """
         if self.model is not None:
             return
 
-        logger.info(f"Initializing GLiNERExtractor with model: {self.model_name}")
-        loop = asyncio.get_running_loop()
-        # GLiNER.from_pretrained can trigger downloads, so run in executor
-        self.model = await loop.run_in_executor(None, GLiNER.from_pretrained, self.model_name)
+        self.model = await get_gliner_model(self.model_name)
 
     def _build_candidate(self, entity: dict[str, Any]) -> EntityCandidate:
         """

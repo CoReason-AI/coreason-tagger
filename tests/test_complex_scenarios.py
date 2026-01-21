@@ -25,7 +25,8 @@ def mock_sentence_transformer_complex() -> Generator[MagicMock, None, None]:
     """
     Mock SentenceTransformer for complex scenarios.
     """
-    with patch("coreason_tagger.linker.SentenceTransformer") as MockClass:
+    # Patch coreason_tagger.registry.SentenceTransformer
+    with patch("coreason_tagger.registry.SentenceTransformer") as MockClass:
         mock_instance = MockClass.return_value
 
         def encode_side_effect(sentences: str | list[str], convert_to_tensor: bool = False) -> torch.Tensor:

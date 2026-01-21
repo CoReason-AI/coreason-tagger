@@ -24,7 +24,7 @@ def mock_sentence_transformer_context() -> Generator[MagicMock, None, None]:
     Mock SentenceTransformer that returns embeddings reflecting semantic meaning.
     We use orthogonal vectors to ensure cosine similarity differentiates them properly.
     """
-    with patch("coreason_tagger.linker.SentenceTransformer") as MockClass:
+    with patch("coreason_tagger.registry.SentenceTransformer") as MockClass:
         mock_instance = MockClass.return_value
 
         def encode_side_effect(sentences: Any, convert_to_tensor: bool = False) -> Any:

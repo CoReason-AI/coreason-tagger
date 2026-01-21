@@ -19,16 +19,15 @@ from coreason_tagger.schema import EntityCandidate, ExtractionStrategy, LinkedEn
 # Mock the SentenceTransformer to avoid downloading/loading the model during tests
 @pytest.fixture
 def mock_sentence_transformer() -> Generator[MagicMock, None, None]:
-    with patch("coreason_tagger.linker.SentenceTransformer") as MockClass:
+    # We patch 'coreason_tagger.registry.SentenceTransformer' because linker calls registry
+    with patch("coreason_tagger.registry.SentenceTransformer") as MockClass:
         mock_instance = MockClass.return_value
         import torch
 
         def side_effect(sentences: Any, convert_to_tensor: bool = False) -> Any:
-            # Always return tensors to match real behavior for cos_sim
             if isinstance(sentences, str):
                 return torch.tensor([0.1, 0.2, 0.3])
             elif isinstance(sentences, list):
-                # Return tensor of shape (len, 3)
                 return torch.tensor([[0.1, 0.2, 0.3] for _ in sentences])
             return torch.tensor([])
 
@@ -56,9 +55,11 @@ def create_candidate(text: str, label: str = "Symptom") -> EntityCandidate:
 
 
 def test_initialization(mock_sentence_transformer: MagicMock, mock_codex: AsyncMock) -> None:
+    # Initialization doesn't load the model immediately anymore (lazy loaded via registry)
+    # But calling resolve or access would load it.
     linker = VectorLinker(codex_client=mock_codex, model_name="test-model")
     assert linker.model_name == "test-model"
-    mock_sentence_transformer.assert_called_with("test-model")
+    # Registry is called only when needed.
 
 
 async def test_resolve_empty_text(mock_sentence_transformer: MagicMock, mock_codex: AsyncMock) -> None:
@@ -94,7 +95,6 @@ async def test_resolve_success(mock_sentence_transformer: MagicMock, mock_codex:
     with patch("coreason_tagger.linker.util.cos_sim") as mock_cos_sim:
         import torch
 
-        # Return a tensor where the second candidate (Migraine) has a higher score
         mock_cos_sim.return_value = torch.tensor([[0.8, 0.95]])
 
         candidate = create_candidate("severe migraine")
@@ -110,8 +110,9 @@ async def test_resolve_integration_with_mock_codex() -> None:
 
     codex = MockCoreasonCodex()
 
+    # Patch SentenceTransformer in registry for this test
     with (
-        patch("coreason_tagger.linker.SentenceTransformer") as MockST,
+        patch("coreason_tagger.registry.SentenceTransformer") as MockST,
         patch("coreason_tagger.linker.util.cos_sim") as mock_cos_sim,
     ):
         mock_instance = MockST.return_value
@@ -121,15 +122,11 @@ async def test_resolve_integration_with_mock_codex() -> None:
 
         linker = VectorLinker(codex_client=codex)
 
-        # Scenario: "cold" (not in mock) vs something close?
-        # MockCodex has "Headache" (score 0.5 for mismatch query).
-        # We assume search returns 3 items
         mock_cos_sim.return_value = torch.tensor([[0.1, 0.9, 0.2]])
 
         candidate = create_candidate("head ache")
         result = await linker.resolve(candidate, "context", ExtractionStrategy.SPEED_GLINER)
 
-        # We expect a result
         assert result is not None
         assert result.concept_id is not None
         assert result.link_score == pytest.approx(0.9)
@@ -139,7 +136,6 @@ async def test_resolve_malformed_candidates(mock_sentence_transformer: MagicMock
     """Test handling of candidates missing keys like 'concept_name'."""
     linker = VectorLinker(codex_client=mock_codex)
 
-    # Candidate missing name
     candidates = [
         {"concept_id": "C1", "score": 0.5},  # No name
         {"concept_id": "C2", "concept_name": "Valid", "score": 0.4},
@@ -172,7 +168,6 @@ async def test_resolve_tie_handling(mock_sentence_transformer: MagicMock, mock_c
     with patch("coreason_tagger.linker.util.cos_sim") as mock_cos_sim:
         import torch
 
-        # Both have 0.8
         mock_cos_sim.return_value = torch.tensor([[0.8, 0.8]])
 
         candidate = create_candidate("query")
@@ -196,7 +191,6 @@ async def test_resolve_reordering_logic(mock_sentence_transformer: MagicMock, mo
     with patch("coreason_tagger.linker.util.cos_sim") as mock_cos_sim:
         import torch
 
-        # Rank2 has much better vector score
         mock_cos_sim.return_value = torch.tensor([[0.2, 0.95]])
 
         candidate = create_candidate("query")
@@ -204,14 +198,11 @@ async def test_resolve_reordering_logic(mock_sentence_transformer: MagicMock, mo
 
         assert result.concept_id == "Rank2"
         assert result.concept_name == "GoodMatch"
-        # Verify score is the vector score, not original score
         assert result.link_score == pytest.approx(0.95)
 
 
 async def test_linker_caching_basic(mock_sentence_transformer: MagicMock, mock_codex: AsyncMock) -> None:
     """Verify standard LRU caching behavior for repeated calls."""
-
-    # Setup return values
     candidates = [{"concept_id": "C1", "concept_name": "Test", "score": 0.5}]
     mock_codex.search.return_value = candidates
 
@@ -227,7 +218,7 @@ async def test_linker_caching_basic(mock_sentence_transformer: MagicMock, mock_c
         await linker.resolve(candidate, "context", ExtractionStrategy.SPEED_GLINER)
         assert mock_codex.search.call_count == 1
 
-        # Second call (same text)
+        # Second call (same text) - Should be cached by alru_cache on _get_candidates_impl
         await linker.resolve(candidate, "context", ExtractionStrategy.SPEED_GLINER)
         assert mock_codex.search.call_count == 1  # Should still be 1
 
@@ -236,16 +227,20 @@ async def test_linker_caching_basic(mock_sentence_transformer: MagicMock, mock_c
         await linker.resolve(candidate2, "context", ExtractionStrategy.SPEED_GLINER)
         assert mock_codex.search.call_count == 2
 
-        # Verify cache hits by checking internal dictionary
-        assert "aspirin" in linker._cache
-        assert "tylenol" in linker._cache
+        # Check cache info
+        info = linker._get_candidates_impl.cache_info()
+        assert info.hits >= 1
 
 
 async def test_linker_caching_instance_independence(
     mock_sentence_transformer: MagicMock, mock_codex: AsyncMock
 ) -> None:
-    """Verify that caches are independent per instance."""
-
+    """
+    Verify that caches are working.
+    Note: @alru_cache on the method shares cache across instances if 'self' is part of the key.
+    Since 'self' (VectorLinker instance) is distinct, the keys (self, text) are distinct.
+    So caches are effectively independent per instance.
+    """
     candidates = [{"concept_id": "C1", "concept_name": "Test", "score": 0.5}]
     mock_codex.search.return_value = candidates
 
@@ -261,14 +256,11 @@ async def test_linker_caching_instance_independence(
 
         # Linker 1 called
         await linker1.resolve(candidate, "context", ExtractionStrategy.SPEED_GLINER)
-        assert "aspirin" in linker1._cache
-        assert "aspirin" not in linker2._cache
-
-        # Linker 2 called (same text) -> Should be a miss for linker2
+        # Linker 2 called (same text)
         await linker2.resolve(candidate, "context", ExtractionStrategy.SPEED_GLINER)
-        assert "aspirin" in linker2._cache
-        # Should have called search twice in total (once for each linker)
-        # Note: mock_codex is shared
+
+        # Since instances are different, cache keys are different.
+        # So search should be called twice.
         assert mock_codex.search.call_count == 2
 
 
@@ -279,8 +271,8 @@ async def test_linker_caching_empty_bypass(mock_sentence_transformer: MagicMock,
 
     await linker.resolve(candidate, "context", ExtractionStrategy.SPEED_GLINER)
 
-    # Check cache stats - should be untouched
-    assert len(linker._cache) == 0
+    # Cache should not be touched for empty string because resolve returns early
+    assert mock_codex.search.call_count == 0
 
 
 async def test_rerank_empty_candidates(mock_sentence_transformer: MagicMock, mock_codex: AsyncMock) -> None:
@@ -288,45 +280,3 @@ async def test_rerank_empty_candidates(mock_sentence_transformer: MagicMock, moc
     linker = VectorLinker(codex_client=mock_codex)
     result = await linker._rerank("query", [])
     assert result == {}
-
-
-async def test_linker_cache_eviction(mock_sentence_transformer: MagicMock, mock_codex: AsyncMock) -> None:
-    """Test cache eviction policy."""
-    linker = VectorLinker(codex_client=mock_codex)
-    # Manually set cache size to 3 for testing
-    linker._cache_size = 3
-
-    mock_codex.search.return_value = [{"concept_id": "C"}]
-
-    # Fill cache
-    await linker.resolve(create_candidate("one"), "", ExtractionStrategy.SPEED_GLINER)
-    await linker.resolve(create_candidate("two"), "", ExtractionStrategy.SPEED_GLINER)
-    await linker.resolve(create_candidate("three"), "", ExtractionStrategy.SPEED_GLINER)
-
-    assert len(linker._cache) == 3
-
-    # Trigger eviction (add fourth item)
-    # 10% of 3 is 0.3 -> cast to int is 0. Wait.
-    # int(3 * 0.1) = 0. keys_to_remove = [:0] = [].
-    # So if cache size is small, 10% might be 0, so no eviction happens?
-    # Logic: keys_to_remove = list(...)[: int(size * 0.1)]
-    # If this is 0, we have an infinite loop or cache grows indefinitely?
-    # The code says: `if len(cache) >= size: ... del keys`.
-    # If keys is empty, it doesn't delete anything, and adds new key.
-    # So cache grows beyond size.
-    # I should update the linker logic to ensure at least 1 item is removed if full.
-    # Or just test with larger size where int(size * 0.1) >= 1.
-    # Let's set size to 10.
-
-    linker._cache_size = 10
-    for i in range(10):
-        await linker.resolve(create_candidate(f"term{i}"), "", ExtractionStrategy.SPEED_GLINER)
-
-    assert len(linker._cache) == 10
-
-    # Add 11th
-    await linker.resolve(create_candidate("term10"), "", ExtractionStrategy.SPEED_GLINER)
-
-    # 10 * 0.1 = 1. Should remove 1 item.
-    # Expected size: 9 + 1 = 10.
-    assert len(linker._cache) <= 10

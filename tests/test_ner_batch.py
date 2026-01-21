@@ -13,15 +13,22 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from coreason_tagger.ner import GLiNERExtractor
+from coreason_tagger.registry import get_gliner_model
 from coreason_tagger.schema import EntityCandidate
 
 
 @pytest.fixture
 def mock_gliner_model() -> Generator[MagicMock, None, None]:
-    with patch("coreason_tagger.ner.GLiNER.from_pretrained") as mock_load:
+    # Clear cache to ensure isolation between tests using the same model name
+    get_gliner_model.cache_clear()
+
+    with patch("coreason_tagger.registry.GLiNER.from_pretrained") as mock_load:
         mock_model = MagicMock()
         mock_load.return_value = mock_model
         yield mock_model
+
+    # Clear cache after test too, for good measure
+    get_gliner_model.cache_clear()
 
 
 @pytest.mark.asyncio

@@ -27,7 +27,7 @@ def mock_sentence_transformer_complex() -> Generator[MagicMock, None, None]:
     - Sensation/Feeling/Shivering -> [0, 1, 0]
     - Cold (Ambiguous) -> [0.7, 0.7, 0]
     """
-    with patch("coreason_tagger.linker.SentenceTransformer") as MockClass:
+    with patch("coreason_tagger.registry.SentenceTransformer") as MockClass:
         mock_instance = MockClass.return_value
 
         def encode_side_effect(sentences: Any, convert_to_tensor: bool = False) -> Any:
