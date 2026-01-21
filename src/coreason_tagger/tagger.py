@@ -9,9 +9,10 @@
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
 import asyncio
-from typing import Optional
+from typing import Optional, Union
 
 from coreason_tagger.interfaces import BaseAssertionDetector, BaseExtractor, BaseLinker
+from coreason_tagger.ner import ExtractorFactory
 from coreason_tagger.schema import EntityCandidate, ExtractionStrategy, LinkedEntity
 
 
@@ -23,7 +24,7 @@ class CoreasonTagger:
 
     def __init__(
         self,
-        ner: BaseExtractor,
+        ner: Union[BaseExtractor, ExtractorFactory],
         assertion: BaseAssertionDetector,
         linker: BaseLinker,
     ) -> None:
@@ -31,13 +32,21 @@ class CoreasonTagger:
         Initialize the Tagger with its dependencies.
 
         Args:
-            ner: The NER extractor (e.g., GLiNER).
+            ner: The NER extractor (e.g., GLiNER) OR an ExtractorFactory.
+                 If BaseExtractor is passed, it acts as a single-strategy pipeline (legacy support).
+                 If ExtractorFactory is passed, it supports dynamic strategy switching.
             assertion: The assertion detector.
             linker: The entity linker.
         """
-        self.ner = ner
+        self.ner_or_factory = ner
         self.assertion = assertion
         self.linker = linker
+
+    def _get_extractor(self, strategy: ExtractionStrategy) -> BaseExtractor:
+        """Helper to resolve the correct extractor."""
+        if isinstance(self.ner_or_factory, ExtractorFactory):
+            return self.ner_or_factory.get_extractor(strategy)
+        return self.ner_or_factory
 
     async def _process_candidate(
         self, text: str, candidate: EntityCandidate, strategy: ExtractionStrategy
@@ -97,8 +106,11 @@ class CoreasonTagger:
         if not text:
             return []
 
-        # 1. Extract (NER)
-        candidates = await self.ner.extract(text, labels)
+        # 1. Resolve Extractor
+        extractor = self._get_extractor(strategy)
+
+        # 2. Extract (NER)
+        candidates = await extractor.extract(text, labels)
 
         # Process candidates concurrently
         tasks = [self._process_candidate(text, candidate, strategy) for candidate in candidates]
@@ -130,8 +142,11 @@ class CoreasonTagger:
         if not texts:
             return []
 
-        # 1. Batch Extract (NER)
-        batch_candidates = await self.ner.extract_batch(texts, labels)
+        # 1. Resolve Extractor
+        extractor = self._get_extractor(strategy)
+
+        # 2. Batch Extract (NER)
+        batch_candidates = await extractor.extract_batch(texts, labels)
 
         batch_results: list[list[LinkedEntity]] = []
 
