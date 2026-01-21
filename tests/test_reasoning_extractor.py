@@ -11,10 +11,10 @@
 # mypy: ignore-errors
 
 import asyncio
-import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
 from coreason_tagger.ner import ReasoningExtractor
 from coreason_tagger.schema import EntityCandidate
 
@@ -22,14 +22,8 @@ from coreason_tagger.schema import EntityCandidate
 @pytest.fixture
 def candidate_factory():
     def _create(text, start, end, label="test"):
-        return EntityCandidate(
-            text=text,
-            start=start,
-            end=end,
-            label=label,
-            confidence=0.9,
-            source_model="test"
-        )
+        return EntityCandidate(text=text, start=start, end=end, label=label, confidence=0.9, source_model="test")
+
     return _create
 
 
@@ -107,9 +101,7 @@ async def test_verification_success(candidate_factory):
     c2 = candidate_factory("invalid", 10, 17)
 
     with patch("litellm.acompletion", new_callable=AsyncMock) as mock_llm:
-        mock_llm.return_value.choices = [
-            MagicMock(message=MagicMock(content='{"valid_ids": [0]}'))
-        ]
+        mock_llm.return_value.choices = [MagicMock(message=MagicMock(content='{"valid_ids": [0]}'))]
 
         verified = await extractor._verify_with_llm("context", [c1, c2])
 
@@ -144,9 +136,7 @@ async def test_extract_full_flow(candidate_factory):
 
     # Mock LLM
     with patch("litellm.acompletion", new_callable=AsyncMock) as mock_llm:
-        mock_llm.return_value.choices = [
-            MagicMock(message=MagicMock(content='{"valid_ids": [0]}'))
-        ]
+        mock_llm.return_value.choices = [MagicMock(message=MagicMock(content='{"valid_ids": [0]}'))]
 
         result = await extractor.extract("history of breast cancer", ["test"])
 

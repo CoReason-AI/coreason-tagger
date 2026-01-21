@@ -9,6 +9,7 @@
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
 import pytest
+
 from coreason_tagger.codex_mock import MockCoreasonCodex
 
 
