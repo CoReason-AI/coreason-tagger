@@ -16,7 +16,7 @@ import torch
 from coreason_tagger.assertion_detector import RegexBasedAssertionDetector
 from coreason_tagger.codex_mock import MockCoreasonCodex
 from coreason_tagger.linker import VectorLinker
-from coreason_tagger.schema import AssertionStatus, ExtractedSpan
+from coreason_tagger.schema import AssertionStatus, EntityCandidate
 from coreason_tagger.tagger import CoreasonTagger
 
 
@@ -68,30 +68,27 @@ def test_mixed_assertion_in_sentence(mock_sentence_transformer_complex: MagicMoc
 
     Entity 1: "diabetes" -> Context "Mother" -> FAMILY
     Entity 2: "hypertension" -> Context "patient denies" -> ABSENT
-
-    This requires the assertion detector to be clause-aware or have smart windowing,
-    otherwise "Mother" would contaminate the context for "hypertension".
     """
     text = "Mother has diabetes, but patient denies hypertension."
 
     # Mock NER
     mock_ner = MagicMock()
     mock_ner.extract.return_value = [
-        ExtractedSpan(
+        EntityCandidate(
             text="diabetes",
             label="Condition",
             start=11,
             end=19,
-            score=0.99,
-            context=text,
+            confidence=0.99,
+            source_model="mock",
         ),
-        ExtractedSpan(
+        EntityCandidate(
             text="hypertension",
             label="Condition",
             start=40,
             end=52,
-            score=0.99,
-            context=text,
+            confidence=0.99,
+            source_model="mock",
         ),
     ]
 
@@ -105,8 +102,8 @@ def test_mixed_assertion_in_sentence(mock_sentence_transformer_complex: MagicMoc
     assert len(results) == 2
 
     # Processed in order of appearance usually, but let's find by name
-    diabetes_entity = next(e for e in results if e.span_text == "diabetes")
-    hypertension_entity = next(e for e in results if e.span_text == "hypertension")
+    diabetes_entity = next(e for e in results if e.text == "diabetes")
+    hypertension_entity = next(e for e in results if e.text == "hypertension")
 
     # Verify Assertions
     assert diabetes_entity.assertion == AssertionStatus.FAMILY
@@ -129,21 +126,21 @@ def test_duplicate_term_disambiguation(mock_sentence_transformer_complex: MagicM
 
     mock_ner = MagicMock()
     mock_ner.extract.return_value = [
-        ExtractedSpan(
+        EntityCandidate(
             text="cold",
             label="Condition",
             start=17,
             end=21,
-            score=0.9,
-            context=text,
+            confidence=0.9,
+            source_model="mock",
         ),
-        ExtractedSpan(
+        EntityCandidate(
             text="cold",
             label="Symptom",
             start=37,
             end=41,
-            score=0.9,
-            context=text,
+            confidence=0.9,
+            source_model="mock",
         ),
     ]
 
@@ -162,8 +159,8 @@ def test_duplicate_term_disambiguation(mock_sentence_transformer_complex: MagicM
     entity1 = results[0]  # first "cold"
     entity2 = results[1]  # second "cold"
 
-    assert entity1.span_text == "cold"
+    assert entity1.text == "cold"
     assert entity1.concept_name == "Common Cold"  # Infection
 
-    assert entity2.span_text == "cold"
+    assert entity2.text == "cold"
     assert entity2.concept_name == "Chills"  # Sensation

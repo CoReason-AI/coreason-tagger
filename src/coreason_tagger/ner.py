@@ -15,7 +15,7 @@ from loguru import logger
 
 from coreason_tagger.config import settings
 from coreason_tagger.interfaces import BaseNERExtractor
-from coreason_tagger.schema import ExtractedSpan
+from coreason_tagger.schema import EntityCandidate
 
 
 class GLiNERExtractor(BaseNERExtractor):
@@ -37,24 +37,23 @@ class GLiNERExtractor(BaseNERExtractor):
         # Load the model. Note: This might download weights on first run.
         self.model = GLiNER.from_pretrained(self.model_name)
 
-    def _build_span(self, entity: dict[str, Any], context: str) -> ExtractedSpan:
+    def _build_candidate(self, entity: dict[str, Any]) -> EntityCandidate:
         """
-        Helper to convert a raw dictionary from GLiNER into an ExtractedSpan.
+        Helper to convert a raw dictionary from GLiNER into an EntityCandidate.
 
         Args:
             entity (dict[str, Any]): Raw entity dictionary containing 'text', 'label', 'start', 'end', 'score'.
-            context (str): The source text.
 
         Returns:
-            ExtractedSpan: The typed entity span.
+            EntityCandidate: The typed entity candidate.
         """
-        return ExtractedSpan(
+        return EntityCandidate(
             text=entity["text"],
             label=entity["label"],
             start=entity["start"],
             end=entity["end"],
-            score=entity["score"],
-            context=context,
+            confidence=entity["score"],
+            source_model=self.model_name,
         )
 
     def _validate_threshold(self, threshold: float) -> None:
@@ -70,7 +69,7 @@ class GLiNERExtractor(BaseNERExtractor):
         if not 0.0 <= threshold <= 1.0:
             raise ValueError(f"Threshold must be between 0.0 and 1.0, got {threshold}")
 
-    def extract(self, text: str, labels: list[str], threshold: float = 0.5) -> list[ExtractedSpan]:
+    def extract(self, text: str, labels: list[str], threshold: float = 0.5) -> list[EntityCandidate]:
         """
         Extract entities from text using the provided labels.
 
@@ -80,7 +79,7 @@ class GLiNERExtractor(BaseNERExtractor):
             threshold (float): The confidence threshold. Defaults to 0.5.
 
         Returns:
-            list[ExtractedSpan]: A list of detected entity spans.
+            list[EntityCandidate]: A list of detected entity candidates.
         """
         self._validate_threshold(threshold)
 
@@ -91,9 +90,9 @@ class GLiNERExtractor(BaseNERExtractor):
         # [{'start': 0, 'end': 5, 'text': '...', 'label': '...', 'score': 0.95}, ...]
         raw_entities = self.model.predict_entities(text, labels, threshold=threshold)
 
-        return [self._build_span(entity, text) for entity in raw_entities]
+        return [self._build_candidate(entity) for entity in raw_entities]
 
-    def extract_batch(self, texts: list[str], labels: list[str], threshold: float = 0.5) -> list[list[ExtractedSpan]]:
+    def extract_batch(self, texts: list[str], labels: list[str], threshold: float = 0.5) -> list[list[EntityCandidate]]:
         """
         Extract entities from a batch of texts using the provided labels.
 
@@ -103,8 +102,8 @@ class GLiNERExtractor(BaseNERExtractor):
             threshold (float): The confidence threshold. Defaults to 0.5.
 
         Returns:
-            list[list[ExtractedSpan]]: A list of lists, where each inner list contains
-                                       detected entity spans for the corresponding text.
+            list[list[EntityCandidate]]: A list of lists, where each inner list contains
+                                       detected entity candidates for the corresponding text.
         """
         self._validate_threshold(threshold)
 
@@ -115,12 +114,13 @@ class GLiNERExtractor(BaseNERExtractor):
         # batch_predict_entities returns a list of lists of dicts.
         batch_raw_entities = self.model.batch_predict_entities(texts, labels, threshold=threshold)
 
-        batch_extracted_spans: list[list[ExtractedSpan]] = []
+        batch_extracted_candidates: list[list[EntityCandidate]] = []
 
-        # Iterate over both the original texts (for context) and the results
+        # Iterate over results
         # Use strict=True to ensure the model returns results for every input text
-        for text, raw_entities in zip(texts, batch_raw_entities, strict=True):
-            extracted_spans = [self._build_span(entity, text) for entity in raw_entities]
-            batch_extracted_spans.append(extracted_spans)
+        # (Though we don't strictly need 'texts' for iteration anymore, zip is safer validation)
+        for _, raw_entities in zip(texts, batch_raw_entities, strict=True):
+            extracted_candidates = [self._build_candidate(entity) for entity in raw_entities]
+            batch_extracted_candidates.append(extracted_candidates)
 
-        return batch_extracted_spans
+        return batch_extracted_candidates

@@ -8,18 +8,44 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
-from typing import Any, Dict, List
+from typing import List
 
 from coreason_tagger.interfaces import BaseAssertionDetector, BaseLinker, BaseNERExtractor
-from coreason_tagger.schema import AssertionStatus, ExtractedSpan
+from coreason_tagger.schema import (
+    AssertionStatus,
+    EntityCandidate,
+    ExtractionStrategy,
+    LinkedEntity,
+)
 
 
 class ConcreteExtractor(BaseNERExtractor):
-    def extract(self, text: str, labels: List[str], threshold: float = 0.5) -> List[ExtractedSpan]:
-        return [ExtractedSpan(text="test", label=labels[0], start=0, end=4, score=1.0)]
+    def extract(self, text: str, labels: List[str], threshold: float = 0.5) -> List[EntityCandidate]:
+        return [
+            EntityCandidate(
+                text="test",
+                label=labels[0],
+                start=0,
+                end=4,
+                confidence=1.0,
+                source_model="mock",
+            )
+        ]
 
-    def extract_batch(self, texts: List[str], labels: List[str], threshold: float = 0.5) -> List[List[ExtractedSpan]]:
-        return [[ExtractedSpan(text="test", label=labels[0], start=0, end=4, score=1.0)] for _ in texts]
+    def extract_batch(self, texts: List[str], labels: List[str], threshold: float = 0.5) -> List[List[EntityCandidate]]:
+        return [
+            [
+                EntityCandidate(
+                    text="test",
+                    label=labels[0],
+                    start=0,
+                    end=4,
+                    confidence=1.0,
+                    source_model="mock",
+                )
+            ]
+            for _ in texts
+        ]
 
 
 class ConcreteAssertionDetector(BaseAssertionDetector):
@@ -28,15 +54,21 @@ class ConcreteAssertionDetector(BaseAssertionDetector):
 
 
 class ConcreteLinker(BaseLinker):
-    def link(self, entity: ExtractedSpan) -> Dict[str, Any]:
-        return {"concept_id": "1", "concept_name": "Test", "confidence": 1.0}
+    def resolve(self, entity: EntityCandidate, context: str, strategy: ExtractionStrategy) -> LinkedEntity:
+        return LinkedEntity(
+            **entity.model_dump(),
+            strategy_used=strategy,
+            concept_id="1",
+            concept_name="Test",
+            link_score=1.0,
+        )
 
 
 def test_extractor_interface() -> None:
     extractor = ConcreteExtractor()
     result = extractor.extract("sample text", ["TestLabel"])
     assert len(result) == 1
-    assert isinstance(result[0], ExtractedSpan)
+    assert isinstance(result[0], EntityCandidate)
     assert result[0].text == "test"
     assert result[0].label == "TestLabel"
 
@@ -54,6 +86,15 @@ def test_assertion_detector_interface() -> None:
 
 def test_linker_interface() -> None:
     linker = ConcreteLinker()
-    span = ExtractedSpan(text="sample", label="Label", start=0, end=6, score=1.0)
-    result = linker.link(span)
-    assert result == {"concept_id": "1", "concept_name": "Test", "confidence": 1.0}
+    candidate = EntityCandidate(
+        text="sample",
+        label="Label",
+        start=0,
+        end=6,
+        confidence=1.0,
+        source_model="mock",
+    )
+    result = linker.resolve(candidate, "context", ExtractionStrategy.SPEED_GLINER)
+    assert isinstance(result, LinkedEntity)
+    assert result.concept_id == "1"
+    assert result.concept_name == "Test"

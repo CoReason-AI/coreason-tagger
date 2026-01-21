@@ -1,39 +1,61 @@
+# Copyright (c) 2025 CoReason, Inc.
+#
+# This software is proprietary and dual-licensed.
+# Licensed under the Prosperity Public License 3.0 (the "License").
+# A copy of the license is available at https://prosperitylicense.com/versions/3.0.0
+# For details, see the LICENSE file.
+# Commercial use beyond a 30-day trial requires a separate license.
+#
+# Source Code: https://github.com/CoReason-AI/coreason_tagger
+
 from enum import Enum
+from typing import Any, List, Optional
 
 from pydantic import BaseModel, Field
 
 
+class ExtractionStrategy(str, Enum):
+    SPEED_GLINER = "SPEED_GLINER"
+    PRECISION_NUNER = "PRECISION_NUNER"
+    REASONING_LLM = "REASONING_LLM"
+
+
 class AssertionStatus(str, Enum):
-    PRESENT = "PRESENT"
-    ABSENT = "ABSENT"
-    POSSIBLE = "POSSIBLE"
-    CONDITIONAL = "CONDITIONAL"
-    ASSOCIATED_WITH_SOMEONE_ELSE = "ASSOCIATED_WITH_SOMEONE_ELSE"
-    # Alias for convenience or if used interchangeably in some contexts
-    FAMILY = "FAMILY_HISTORY"
+    PRESENT = "PRESENT"  # Default
+    ABSENT = "ABSENT"  # Negated ("No signs of...")
+    POSSIBLE = "POSSIBLE"  # Speculative ("Rule out...")
+    CONDITIONAL = "CONDITIONAL"  # ("If symptoms persist...")
+    HISTORY = "HISTORY"  # ("History of...")
+    FAMILY = "FAMILY"  # ("Mother had...")
 
 
-class ExtractedSpan(BaseModel):
-    """
-    Represents a raw entity extracted by the NER model.
-    """
+class EntityCandidate(BaseModel):
+    """Raw output from the NER layer."""
 
-    text: str = Field(..., description="The extracted text.")
-    label: str = Field(..., description="The predicted label.")
-    start: int = Field(..., description="Start character index.")
-    end: int = Field(..., description="End character index.")
-    score: float = Field(..., description="Confidence score.")
-    context: str = Field(default="", description="The surrounding context text.")
+    text: str
+    start: int
+    end: int
+    label: str
+    confidence: float
+    source_model: str  # e.g., "gliner_large_v2"
 
 
-class TaggedEntity(BaseModel):
-    span_text: str = Field(..., min_length=1)
-    label: str = Field(..., min_length=1)
+class LinkedEntity(EntityCandidate):
+    """The final hydrated entity."""
 
-    # The Link
-    concept_id: str = Field(..., min_length=1)
-    concept_name: str = Field(..., min_length=1)
-    link_confidence: float = Field(..., ge=0.0, le=1.0)
+    # Context
+    assertion: AssertionStatus = Field(default=AssertionStatus.PRESENT)
 
-    # The Context
-    assertion: AssertionStatus
+    # Linking (NEN)
+    concept_id: Optional[str] = None  # "SNOMED:12345"
+    concept_name: Optional[str] = None  # "Viral Rhinitis"
+    link_score: float = 0.0  # Cosine similarity
+
+    # Traceability
+    strategy_used: ExtractionStrategy
+
+
+class BatchRequest(BaseModel):
+    texts: List[str]
+    labels: List[str]
+    config: dict[str, Any] = Field(default_factory=dict)  # Overrides

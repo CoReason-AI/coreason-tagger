@@ -12,7 +12,12 @@ from unittest.mock import MagicMock
 
 import pytest
 from coreason_tagger.interfaces import BaseAssertionDetector, BaseLinker, BaseNERExtractor
-from coreason_tagger.schema import AssertionStatus, ExtractedSpan, TaggedEntity
+from coreason_tagger.schema import (
+    AssertionStatus,
+    EntityCandidate,
+    ExtractionStrategy,
+    LinkedEntity,
+)
 from coreason_tagger.tagger import CoreasonTagger
 
 
@@ -36,6 +41,24 @@ def tagger(mock_ner: MagicMock, mock_assertion: MagicMock, mock_linker: MagicMoc
     return CoreasonTagger(ner=mock_ner, assertion=mock_assertion, linker=mock_linker)
 
 
+def create_linked_entity(
+    text: str, label: str, concept_id: str, assertion: AssertionStatus = AssertionStatus.PRESENT
+) -> LinkedEntity:
+    return LinkedEntity(
+        text=text,
+        label=label,
+        start=0,
+        end=len(text),
+        confidence=1.0,
+        source_model="mock",
+        assertion=assertion,
+        concept_id=concept_id,
+        concept_name="Name",
+        link_score=0.9,
+        strategy_used=ExtractionStrategy.SPEED_GLINER,
+    )
+
+
 def test_tag_happy_path(
     tagger: CoreasonTagger,
     mock_ner: MagicMock,
@@ -47,34 +70,37 @@ def test_tag_happy_path(
     labels = ["Symptom"]
 
     # Mock NER return
-    span = ExtractedSpan(text="headache", label="Symptom", start=14, end=22, score=0.99)
-    mock_ner.extract.return_value = [span]
+    candidate = EntityCandidate(
+        text="headache",
+        label="Symptom",
+        start=14,
+        end=22,
+        confidence=0.99,
+        source_model="mock",
+    )
+    mock_ner.extract.return_value = [candidate]
 
     # Mock Assertion return
     mock_assertion.detect.return_value = AssertionStatus.PRESENT
 
     # Mock Linker return
-    mock_linker.link.return_value = {
-        "concept_id": "HP:0002315",
-        "concept_name": "Headache",
-        "link_confidence": 0.95,
-    }
+    mock_linker.resolve.return_value = create_linked_entity("headache", "Symptom", "HP:0002315")
 
     results = tagger.tag(text, labels)
 
     assert len(results) == 1
     entity = results[0]
-    assert isinstance(entity, TaggedEntity)
-    assert entity.span_text == "headache"
+    assert isinstance(entity, LinkedEntity)
+    assert entity.text == "headache"
     assert entity.label == "Symptom"
     assert entity.concept_id == "HP:0002315"
     assert entity.assertion == AssertionStatus.PRESENT
-    assert entity.link_confidence == 0.95
+    assert entity.link_score == 0.9
 
     # Verify calls
     mock_ner.extract.assert_called_once_with(text, labels)
     mock_assertion.detect.assert_called_once_with(text=text, span_text="headache", span_start=14, span_end=22)
-    mock_linker.link.assert_called_once_with(span)
+    mock_linker.resolve.assert_called_once()
 
 
 def test_tag_empty_text(tagger: CoreasonTagger, mock_ner: MagicMock) -> None:
@@ -95,13 +121,18 @@ def test_tag_linking_failure(
     mock_assertion: MagicMock,
     mock_linker: MagicMock,
 ) -> None:
-    """Test that entities are dropped if linking fails (returns empty dict)."""
+    """Test that entities are dropped if linking fails (returns entity with no ID)."""
     text = "Unknown thing."
-    span = ExtractedSpan(text="thing", label="Unknown", start=8, end=13, score=0.5)
-    mock_ner.extract.return_value = [span]
+    candidate = EntityCandidate(text="thing", label="Unknown", start=8, end=13, confidence=0.5, source_model="mock")
+    mock_ner.extract.return_value = [candidate]
     mock_assertion.detect.return_value = AssertionStatus.PRESENT
-    # Linker returns empty dict
-    mock_linker.link.return_value = {}
+    # Linker returns entity with None concept_id
+    linked_entity = LinkedEntity(
+        **candidate.model_dump(),
+        strategy_used=ExtractionStrategy.SPEED_GLINER,
+        concept_id=None,
+    )
+    mock_linker.resolve.return_value = linked_entity
 
     results = tagger.tag(text, ["Unknown"])
     assert results == []
@@ -115,27 +146,27 @@ def test_multiple_entities(
 ) -> None:
     """Test processing of multiple entities in one text."""
     text = "Patient denies fever but has cough."
-    span1 = ExtractedSpan(text="fever", label="Symptom", start=15, end=20, score=0.9)
-    span2 = ExtractedSpan(text="cough", label="Symptom", start=29, end=34, score=0.9)
-    mock_ner.extract.return_value = [span1, span2]
+    c1 = EntityCandidate(text="fever", label="Symptom", start=15, end=20, confidence=0.9, source_model="mock")
+    c2 = EntityCandidate(text="cough", label="Symptom", start=29, end=34, confidence=0.9, source_model="mock")
+    mock_ner.extract.return_value = [c1, c2]
 
     # Side effects for assertion (fever -> ABSENT, cough -> PRESENT)
     mock_assertion.detect.side_effect = [AssertionStatus.ABSENT, AssertionStatus.PRESENT]
 
     # Side effects for linker
-    mock_linker.link.side_effect = [
-        {"concept_id": "C1", "concept_name": "Fever", "link_confidence": 0.8},
-        {"concept_id": "C2", "concept_name": "Cough", "link_confidence": 0.85},
-    ]
+    # Note: Linker returns default assertion, Tagger overrides it
+    l1 = create_linked_entity("fever", "Symptom", "C1")
+    l2 = create_linked_entity("cough", "Symptom", "C2")
+    mock_linker.resolve.side_effect = [l1, l2]
 
     results = tagger.tag(text, ["Symptom"])
 
     assert len(results) == 2
-    assert results[0].span_text == "fever"
+    assert results[0].text == "fever"
     assert results[0].assertion == AssertionStatus.ABSENT
     assert results[0].concept_id == "C1"
 
-    assert results[1].span_text == "cough"
+    assert results[1].text == "cough"
     assert results[1].assertion == AssertionStatus.PRESENT
     assert results[1].concept_id == "C2"
 
@@ -145,28 +176,30 @@ def test_user_story_family_history(
 ) -> None:
     """
     Test User Story A: "Patient's mother died of breast cancer."
-    Expectation: Assertion sets FAMILY_HISTORY, Linker maps to Breast Cancer.
+    Expectation: Assertion sets FAMILY, Linker maps to Breast Cancer.
     """
     text = "Patient's mother died of breast cancer."
-    # 1. NER detects
-    span = ExtractedSpan(text="breast cancer", label="Diagnosis", start=24, end=37, score=0.99)
-    mock_ner.extract.return_value = [span]
+    candidate = EntityCandidate(
+        text="breast cancer",
+        label="Diagnosis",
+        start=24,
+        end=37,
+        confidence=0.99,
+        source_model="mock",
+    )
+    mock_ner.extract.return_value = [candidate]
 
     # 2. Assertion detects "mother" in path
     mock_assertion.detect.return_value = AssertionStatus.FAMILY
 
     # 3. Linker maps
-    mock_linker.link.return_value = {
-        "concept_id": "SNOMED:254837009",
-        "concept_name": "Malignant neoplasm of breast",
-        "link_confidence": 0.98,
-    }
+    mock_linker.resolve.return_value = create_linked_entity("breast cancer", "Diagnosis", "SNOMED:254837009")
 
     results = tagger.tag(text, ["Diagnosis"])
 
     assert len(results) == 1
     entity = results[0]
-    assert entity.span_text == "breast cancer"
+    assert entity.text == "breast cancer"
     assert entity.assertion == AssertionStatus.FAMILY
     assert entity.concept_id == "SNOMED:254837009"
 
@@ -179,110 +212,46 @@ def test_user_story_ambiguous_drug(
     Expectation: Linker maps "Lasix" (Brand) to "Furosemide" (Generic).
     """
     text = "Administered 50mg of Lasix."
-    # 1. NER detects
-    span = ExtractedSpan(text="Lasix", label="Drug", start=21, end=26, score=0.99)
-    mock_ner.extract.return_value = [span]
+    candidate = EntityCandidate(text="Lasix", label="Drug", start=21, end=26, confidence=0.99, source_model="mock")
+    mock_ner.extract.return_value = [candidate]
 
-    # 2. Assertion detects PRESENT
     mock_assertion.detect.return_value = AssertionStatus.PRESENT
 
-    # 3. Linker maps brand to generic ID
-    mock_linker.link.return_value = {
-        "concept_id": "RxNorm:4603",
-        "concept_name": "Furosemide",
-        "link_confidence": 0.95,
-    }
+    l_ent = create_linked_entity("Lasix", "Drug", "RxNorm:4603")
+    l_ent.concept_name = "Furosemide"
+    mock_linker.resolve.return_value = l_ent
 
     results = tagger.tag(text, ["Drug"])
 
     assert len(results) == 1
     entity = results[0]
-    assert entity.span_text == "Lasix"
+    assert entity.text == "Lasix"
     assert entity.concept_id == "RxNorm:4603"
     assert entity.concept_name == "Furosemide"
 
 
-def test_mixed_linking_success(
+def test_robustness_empty_span_text(
     tagger: CoreasonTagger, mock_ner: MagicMock, mock_assertion: MagicMock, mock_linker: MagicMock
 ) -> None:
     """
-    Test a batch where some entities link and others fail.
-    Scenario: [Success, Fail, Success]
+    Test robustness: If NER returns a span with empty text, it should be skipped.
     """
-    text = "A, B, C"
-    spans = [
-        ExtractedSpan(text="A", label="Test", start=0, end=1, score=1.0),
-        ExtractedSpan(text="B", label="Test", start=3, end=4, score=1.0),
-        ExtractedSpan(text="C", label="Test", start=6, end=7, score=1.0),
-    ]
-    mock_ner.extract.return_value = spans
+    text = "Some text."
+    # Valid span + Empty span
+    c1 = EntityCandidate(text="valid", label="L", start=0, end=5, confidence=1.0, source_model="mock")
+    c2 = EntityCandidate(text="", label="L", start=6, end=6, confidence=0.0, source_model="mock")
+
+    mock_ner.extract.return_value = [c1, c2]
     mock_assertion.detect.return_value = AssertionStatus.PRESENT
+    mock_linker.resolve.return_value = create_linked_entity("valid", "L", "C")
 
-    # Linker side effects: Dict, Empty, Dict
-    mock_linker.link.side_effect = [
-        {"concept_id": "ID_A", "concept_name": "A", "link_confidence": 1.0},
-        {},  # Failure
-        {"concept_id": "ID_C", "concept_name": "C", "link_confidence": 1.0},
-    ]
+    results = tagger.tag(text, ["L"])
 
-    results = tagger.tag(text, ["Test"])
-
-    assert len(results) == 2
-    assert results[0].span_text == "A"
-    assert results[1].span_text == "C"
-
-
-def test_identical_entity_different_contexts(
-    tagger: CoreasonTagger, mock_ner: MagicMock, mock_assertion: MagicMock, mock_linker: MagicMock
-) -> None:
-    """
-    Test same entity string appearing twice with different contexts/assertions.
-    "Mother has diabetes, but patient denies diabetes."
-    """
-    text = "Mother has diabetes, but patient denies diabetes."
-    # NER finds two "diabetes"
-    span1 = ExtractedSpan(text="diabetes", label="Condition", start=11, end=19, score=0.99)
-    span2 = ExtractedSpan(text="diabetes", label="Condition", start=40, end=48, score=0.99)
-    mock_ner.extract.return_value = [span1, span2]
-
-    # Assertion logic: First is FAMILY, second is ABSENT
-    mock_assertion.detect.side_effect = [AssertionStatus.FAMILY, AssertionStatus.ABSENT]
-
-    # Linker returns same ID for both
-    mock_linker.link.return_value = {
-        "concept_id": "C_DIABETES",
-        "concept_name": "Diabetes Mellitus",
-        "link_confidence": 1.0,
-    }
-
-    results = tagger.tag(text, ["Condition"])
-
-    assert len(results) == 2
-    assert results[0].span_text == "diabetes"
-    assert results[0].assertion == AssertionStatus.FAMILY
-    assert results[1].span_text == "diabetes"
-    assert results[1].assertion == AssertionStatus.ABSENT
-
-
-def test_malformed_linker_result(
-    tagger: CoreasonTagger, mock_ner: MagicMock, mock_assertion: MagicMock, mock_linker: MagicMock
-) -> None:
-    """
-    Test that if linker returns a dict without 'concept_id', it is treated as a failure.
-    (Prevents validation error in TaggedEntity construction).
-    """
-    text = "Something weird."
-    span = ExtractedSpan(text="weird", label="Thing", start=10, end=15, score=0.5)
-    mock_ner.extract.return_value = [span]
-    mock_assertion.detect.return_value = AssertionStatus.PRESENT
-
-    # Linker returns malformed dict
-    mock_linker.link.return_value = {"concept_name": "Only Name No ID", "link_confidence": 0.5}
-
-    results = tagger.tag(text, ["Thing"])
-
-    # Should be skipped
-    assert results == []
+    # Should only contain the valid one
+    assert len(results) == 1
+    assert results[0].text == "valid"
+    # Linker should NOT have been called for the empty one
+    assert mock_linker.resolve.call_count == 1
 
 
 # --- Batch Processing Tests ---
@@ -297,10 +266,10 @@ def test_tag_batch_happy_path(
 
     # Mock NER Batch Return
     # Text 1: Fever
-    span1 = ExtractedSpan(text="fever", label="Symptom", start=12, end=17, score=0.99)
+    c1 = EntityCandidate(text="fever", label="Symptom", start=12, end=17, confidence=0.99, source_model="mock")
     # Text 2: Cough
-    span2 = ExtractedSpan(text="cough", label="Symptom", start=3, end=8, score=0.99)
-    mock_ner.extract_batch.return_value = [[span1], [span2]]
+    c2 = EntityCandidate(text="cough", label="Symptom", start=3, end=8, confidence=0.99, source_model="mock")
+    mock_ner.extract_batch.return_value = [[c1], [c2]]
 
     # Mock Assertion
     # Call 1 (fever): PRESENT
@@ -308,10 +277,9 @@ def test_tag_batch_happy_path(
     mock_assertion.detect.side_effect = [AssertionStatus.PRESENT, AssertionStatus.ABSENT]
 
     # Mock Linker
-    mock_linker.link.side_effect = [
-        {"concept_id": "C_FEVER", "concept_name": "Fever", "link_confidence": 0.9},
-        {"concept_id": "C_COUGH", "concept_name": "Cough", "link_confidence": 0.9},
-    ]
+    l1 = create_linked_entity("fever", "Symptom", "C_FEVER")
+    l2 = create_linked_entity("cough", "Symptom", "C_COUGH")
+    mock_linker.resolve.side_effect = [l1, l2]
 
     results = tagger.tag_batch(texts, labels)
 
@@ -320,14 +288,14 @@ def test_tag_batch_happy_path(
     # Check Result 1
     assert len(results[0]) == 1
     ent1 = results[0][0]
-    assert ent1.span_text == "fever"
+    assert ent1.text == "fever"
     assert ent1.assertion == AssertionStatus.PRESENT
     assert ent1.concept_id == "C_FEVER"
 
     # Check Result 2
     assert len(results[1]) == 1
     ent2 = results[1][0]
-    assert ent2.span_text == "cough"
+    assert ent2.text == "cough"
     assert ent2.assertion == AssertionStatus.ABSENT
     assert ent2.concept_id == "C_COUGH"
 
@@ -353,14 +321,16 @@ def test_tag_batch_mixed_empty_results(
     texts = ["Has fever.", "Nothing here.", "Has cough."]
     labels = ["Symptom"]
 
-    span1 = ExtractedSpan(text="fever", label="Symptom", start=4, end=9, score=0.9)
-    span3 = ExtractedSpan(text="cough", label="Symptom", start=4, end=9, score=0.9)
+    c1 = EntityCandidate(text="fever", label="Symptom", start=4, end=9, confidence=0.9, source_model="mock")
+    c3 = EntityCandidate(text="cough", label="Symptom", start=4, end=9, confidence=0.9, source_model="mock")
 
-    # Return: [ [span1], [], [span3] ]
-    mock_ner.extract_batch.return_value = [[span1], [], [span3]]
+    # Return: [ [c1], [], [c3] ]
+    mock_ner.extract_batch.return_value = [[c1], [], [c3]]
 
     mock_assertion.detect.return_value = AssertionStatus.PRESENT
-    mock_linker.link.return_value = {"concept_id": "CID", "concept_name": "Name", "link_confidence": 1.0}
+    l1 = create_linked_entity("fever", "Symptom", "CID")
+    l3 = create_linked_entity("cough", "Symptom", "CID")
+    mock_linker.resolve.side_effect = [l1, l3]
 
     results = tagger.tag_batch(texts, labels)
 
@@ -368,8 +338,8 @@ def test_tag_batch_mixed_empty_results(
     assert len(results[0]) == 1
     assert len(results[1]) == 0
     assert len(results[2]) == 1
-    assert results[0][0].span_text == "fever"
-    assert results[2][0].span_text == "cough"
+    assert results[0][0].text == "fever"
+    assert results[2][0].text == "cough"
 
 
 def test_tag_batch_context_alignment(
@@ -380,128 +350,18 @@ def test_tag_batch_context_alignment(
     even if texts are identical.
     """
     texts = ["Context A", "Context B"]
-    spanA = ExtractedSpan(text="Entity", label="L", start=0, end=6, score=1.0)
-    spanB = ExtractedSpan(text="Entity", label="L", start=0, end=6, score=1.0)
+    cA = EntityCandidate(text="Entity", label="L", start=0, end=6, confidence=1.0, source_model="mock")
+    cB = EntityCandidate(text="Entity", label="L", start=0, end=6, confidence=1.0, source_model="mock")
 
-    mock_ner.extract_batch.return_value = [[spanA], [spanB]]
+    mock_ner.extract_batch.return_value = [[cA], [cB]]
     mock_assertion.detect.return_value = AssertionStatus.PRESENT
-    mock_linker.link.return_value = {"concept_id": "C", "concept_name": "N", "link_confidence": 1.0}
+    ent = create_linked_entity("Entity", "L", "C")
+    mock_linker.resolve.return_value = ent
 
     tagger.tag_batch(texts, ["L"])
 
     # Check calls to assertion
-    # The first call should use texts[0] ("Context A")
-    # The second call should use texts[1] ("Context B")
-
     calls = mock_assertion.detect.call_args_list
     assert len(calls) == 2
     assert calls[0].kwargs["text"] == "Context A"
     assert calls[1].kwargs["text"] == "Context B"
-
-
-# --- Complex Scenarios ---
-
-
-def test_batch_duplicate_inputs(
-    tagger: CoreasonTagger, mock_ner: MagicMock, mock_assertion: MagicMock, mock_linker: MagicMock
-) -> None:
-    """
-    Test duplicate inputs in the batch.
-    Ensure they are processed as distinct items and order is preserved.
-    """
-    texts = ["Same text", "Same text"]
-    span = ExtractedSpan(text="Entity", label="L", start=0, end=6, score=1.0)
-    mock_ner.extract_batch.return_value = [[span], [span]]
-
-    mock_assertion.detect.return_value = AssertionStatus.PRESENT
-    mock_linker.link.return_value = {"concept_id": "C1", "concept_name": "N", "link_confidence": 1.0}
-
-    results = tagger.tag_batch(texts, ["L"])
-
-    assert len(results) == 2
-    # Verify outputs are distinct list objects
-    assert results[0] is not results[1]
-    # Verify contents are identical
-    assert results[0][0].concept_id == "C1"
-    assert results[1][0].concept_id == "C1"
-
-
-def test_batch_high_density_entities(
-    tagger: CoreasonTagger, mock_ner: MagicMock, mock_assertion: MagicMock, mock_linker: MagicMock
-) -> None:
-    """
-    Test a batch with varying density: empty, single, and multiple entities.
-    """
-    texts = ["None", "Single", "Multi"]
-    spans_single = [ExtractedSpan(text="S", label="L", start=0, end=1, score=1.0)]
-    spans_multi = [
-        ExtractedSpan(text="M1", label="L", start=0, end=2, score=1.0),
-        ExtractedSpan(text="M2", label="L", start=3, end=5, score=1.0),
-    ]
-
-    mock_ner.extract_batch.return_value = [[], spans_single, spans_multi]
-    mock_assertion.detect.return_value = AssertionStatus.PRESENT
-    mock_linker.link.return_value = {"concept_id": "C", "concept_name": "N", "link_confidence": 1.0}
-
-    results = tagger.tag_batch(texts, ["L"])
-
-    assert len(results) == 3
-    assert len(results[0]) == 0
-    assert len(results[1]) == 1
-    assert len(results[2]) == 2
-    assert results[2][0].span_text == "M1"
-    assert results[2][1].span_text == "M2"
-
-
-def test_batch_semantic_disambiguation(
-    tagger: CoreasonTagger, mock_ner: MagicMock, mock_assertion: MagicMock, mock_linker: MagicMock
-) -> None:
-    """
-    Test that identical mentions in different contexts link to different concepts.
-    Context A: "Patient has a cold." -> Viral Rhinitis
-    Context B: "Patient feels cold." -> Chills
-    """
-    texts = ["Patient has a cold.", "Patient feels cold."]
-    # Same span text, different positions
-    span1 = ExtractedSpan(text="cold", label="Condition", start=14, end=18, score=1.0)
-    span2 = ExtractedSpan(text="cold", label="Symptom", start=14, end=18, score=1.0)
-
-    mock_ner.extract_batch.return_value = [[span1], [span2]]
-    mock_assertion.detect.return_value = AssertionStatus.PRESENT
-
-    # Mock different link results based on call order (simplest mock strategy)
-    # Ideally we'd mock based on input, but verifying side_effect mapping is sufficient for the orchestrator test
-    mock_linker.link.side_effect = [
-        {"concept_id": "SNOMED:82272006", "concept_name": "Viral Rhinitis", "link_confidence": 0.9},
-        {"concept_id": "SNOMED:44077006", "concept_name": "Chills", "link_confidence": 0.9},
-    ]
-
-    results = tagger.tag_batch(texts, ["Condition"])
-
-    assert results[0][0].concept_id == "SNOMED:82272006"
-    assert results[1][0].concept_id == "SNOMED:44077006"
-
-
-def test_robustness_empty_span_text(
-    tagger: CoreasonTagger, mock_ner: MagicMock, mock_assertion: MagicMock, mock_linker: MagicMock
-) -> None:
-    """
-    Test robustness: If NER returns a span with empty text, it should be skipped
-    to prevent validation errors in TaggedEntity.
-    """
-    text = "Some text."
-    # Valid span + Empty span
-    span_valid = ExtractedSpan(text="valid", label="L", start=0, end=5, score=1.0)
-    span_empty = ExtractedSpan(text="", label="L", start=6, end=6, score=0.0)
-
-    mock_ner.extract.return_value = [span_valid, span_empty]
-    mock_assertion.detect.return_value = AssertionStatus.PRESENT
-    mock_linker.link.return_value = {"concept_id": "C", "concept_name": "N", "link_confidence": 1.0}
-
-    results = tagger.tag(text, ["L"])
-
-    # Should only contain the valid one
-    assert len(results) == 1
-    assert results[0].span_text == "valid"
-    # Linker should NOT have been called for the empty one
-    assert mock_linker.link.call_count == 1

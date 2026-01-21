@@ -13,7 +13,7 @@ from unittest.mock import MagicMock, patch
 
 from coreason_tagger import __version__
 from coreason_tagger.main import app, get_tagger
-from coreason_tagger.schema import AssertionStatus, TaggedEntity
+from coreason_tagger.schema import AssertionStatus, ExtractionStrategy, LinkedEntity
 from coreason_tagger.tagger import CoreasonTagger
 from typer.testing import CliRunner
 
@@ -35,13 +35,18 @@ def test_tag_command_success(mock_get_tagger: MagicMock) -> None:
     mock_get_tagger.return_value = mock_tagger_instance
 
     # Return a dummy entity
-    mock_entity = TaggedEntity(
-        span_text="fever",
+    mock_entity = LinkedEntity(
+        text="fever",
         label="Symptom",
+        start=12,
+        end=17,
+        confidence=0.99,
+        source_model="mock",
+        assertion=AssertionStatus.PRESENT,
         concept_id="123",
         concept_name="Fever",
-        link_confidence=0.99,
-        assertion=AssertionStatus.PRESENT,
+        link_score=0.99,
+        strategy_used=ExtractionStrategy.SPEED_GLINER,
     )
     mock_tagger_instance.tag.return_value = [mock_entity]
 
@@ -51,7 +56,7 @@ def test_tag_command_success(mock_get_tagger: MagicMock) -> None:
     # Verify JSON output
     output = json.loads(result.stdout)
     assert len(output) == 1
-    assert output[0]["span_text"] == "fever"
+    assert output[0]["text"] == "fever"
     assert output[0]["assertion"] == "PRESENT"
 
     # Verify calls

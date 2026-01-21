@@ -13,7 +13,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from coreason_tagger.ner import GLiNERExtractor
-from coreason_tagger.schema import ExtractedSpan
+from coreason_tagger.schema import EntityCandidate
 
 
 @pytest.fixture
@@ -43,10 +43,11 @@ def test_gliner_extract_batch_success(mock_gliner_model: MagicMock) -> None:
     assert len(results[1]) == 0
 
     span = results[0][0]
-    assert isinstance(span, ExtractedSpan)
+    assert isinstance(span, EntityCandidate)
     assert span.text == "fever"
     assert span.label == "Symptom"
-    assert span.context == "Patient has fever."
+    assert span.confidence == 0.99
+    assert span.source_model is not None
 
     mock_gliner_model.batch_predict_entities.assert_called_once_with(texts, labels, threshold=0.5)
 
@@ -137,9 +138,6 @@ def test_gliner_extract_batch_duplicate_inputs(mock_gliner_model: MagicMock) -> 
     # Verify both have results
     assert len(results[0]) == 1
     assert len(results[1]) == 1
-    # Verify strict order/context mapping
-    assert results[0][0].context == "Dup"
-    assert results[1][0].context == "Dup"
     # Ensure they are distinct objects
     assert results[0][0] is not results[1][0]
 
