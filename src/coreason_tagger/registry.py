@@ -9,14 +9,16 @@
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
 import asyncio
+from typing import Any
 
 from async_lru import alru_cache
 from gliner import GLiNER
 from loguru import logger
 from sentence_transformers import SentenceTransformer
+from transformers import pipeline
 
 
-@alru_cache(maxsize=1)  # type: ignore[misc]
+@alru_cache(maxsize=1)
 async def get_gliner_model(model_name: str) -> GLiNER:
     """
     Load the GLiNER model. Caches the result to ensure singleton behavior per model name.
@@ -28,7 +30,7 @@ async def get_gliner_model(model_name: str) -> GLiNER:
     return model
 
 
-@alru_cache(maxsize=1)  # type: ignore[misc]
+@alru_cache(maxsize=1)
 async def get_sentence_transformer(model_name: str) -> SentenceTransformer:
     """
     Load the SentenceTransformer model. Caches the result to ensure singleton behavior per model name.
@@ -37,3 +39,24 @@ async def get_sentence_transformer(model_name: str) -> SentenceTransformer:
     loop = asyncio.get_running_loop()
     model = await loop.run_in_executor(None, SentenceTransformer, model_name)
     return model
+
+
+@alru_cache(maxsize=1)
+async def get_nuner_pipeline(model_name: str) -> Any:
+    """
+    Load the NuNER pipeline (token-classification).
+    Caches the result to ensure singleton behavior per model name.
+    """
+    logger.info(f"Loading NuNER pipeline: {model_name}")
+    loop = asyncio.get_running_loop()
+    # transformers.pipeline can trigger downloads, so run in executor
+    pipe = await loop.run_in_executor(
+        None,
+        lambda: pipeline(
+            "token-classification",
+            model=model_name,
+            aggregation_strategy="simple",
+            device_map="auto",
+        ),
+    )
+    return pipe
