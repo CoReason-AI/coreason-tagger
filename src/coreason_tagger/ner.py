@@ -8,7 +8,6 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
-import asyncio
 from typing import Any, Optional
 
 from gliner import GLiNER
@@ -17,6 +16,7 @@ from loguru import logger
 from coreason_tagger.config import settings
 from coreason_tagger.interfaces import BaseNERExtractor
 from coreason_tagger.schema import EntityCandidate
+from coreason_tagger.utils.async_utils import run_blocking
 
 
 class GLiNERExtractor(BaseNERExtractor):
@@ -89,11 +89,7 @@ class GLiNERExtractor(BaseNERExtractor):
 
         # GLiNER returns a list of dicts:
         # [{'start': 0, 'end': 5, 'text': '...', 'label': '...', 'score': 0.95}, ...]
-        loop = asyncio.get_running_loop()
-        # Use lambda to pass kwargs correctly to run_in_executor
-        raw_entities = await loop.run_in_executor(
-            None, lambda: self.model.predict_entities(text, labels, threshold=threshold)
-        )
+        raw_entities = await run_blocking(self.model.predict_entities, text, labels, threshold=threshold)
 
         return [self._build_candidate(entity) for entity in raw_entities]
 
@@ -119,11 +115,7 @@ class GLiNERExtractor(BaseNERExtractor):
 
         # Use batch_predict_entities if available.
         # batch_predict_entities returns a list of lists of dicts.
-        loop = asyncio.get_running_loop()
-        # Use lambda to pass kwargs correctly to run_in_executor
-        batch_raw_entities = await loop.run_in_executor(
-            None, lambda: self.model.batch_predict_entities(texts, labels, threshold=threshold)
-        )
+        batch_raw_entities = await run_blocking(self.model.batch_predict_entities, texts, labels, threshold=threshold)
 
         batch_extracted_candidates: list[list[EntityCandidate]] = []
 

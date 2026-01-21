@@ -16,28 +16,10 @@ import typer
 from typing_extensions import Annotated
 
 from coreason_tagger import __version__
-from coreason_tagger.assertion_detector import RegexBasedAssertionDetector
-from coreason_tagger.codex_mock import MockCoreasonCodex
-from coreason_tagger.linker import VectorLinker
-from coreason_tagger.ner import GLiNERExtractor
-from coreason_tagger.tagger import CoreasonTagger
+from coreason_tagger.factory import get_tagger
 from coreason_tagger.utils.logger import logger
 
 app = typer.Typer(help="CoReason Tagger CLI")
-
-
-def get_tagger() -> CoreasonTagger:
-    """
-    Factory function to initialize the full tagger pipeline.
-    In a real app, this might rely on Dependency Injection containers.
-    """
-    logger.info("Initializing Tagger Pipeline...")
-    ner = GLiNERExtractor()
-    assertion = RegexBasedAssertionDetector()
-    # TODO: Replace MockCoreasonCodex with real client when available
-    codex_client = MockCoreasonCodex()
-    linker = VectorLinker(codex_client=codex_client)
-    return CoreasonTagger(ner=ner, assertion=assertion, linker=linker)
 
 
 @app.command()

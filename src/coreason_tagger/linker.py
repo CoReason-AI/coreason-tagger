@@ -8,14 +8,15 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
-import asyncio
 from typing import Any, Dict, List, Optional
 
+from async_lru import alru_cache
 from sentence_transformers import SentenceTransformer, util
 
 from coreason_tagger.config import settings
 from coreason_tagger.interfaces import BaseLinker, CodexClient
 from coreason_tagger.schema import EntityCandidate, ExtractionStrategy, LinkedEntity
+from coreason_tagger.utils.async_utils import run_blocking
 
 
 class VectorLinker(BaseLinker):
@@ -54,12 +55,11 @@ class VectorLinker(BaseLinker):
         # Note: In production, this should be lazy-loaded or managed by a model registry.
         self.model = SentenceTransformer(self.model_name)
 
-        # Cache removed for Async migration. TODO: Re-introduce async-compatible caching (e.g. async-lru)
-        # self._cached_get_candidates = functools.lru_cache(maxsize=1024)(self._get_candidates_impl)
-
+    @alru_cache(maxsize=1024)  # type: ignore
     async def _get_candidates_impl(self, text: str) -> List[Dict[str, Any]]:
         """
         Implementation of candidate generation using Codex.
+        Results are cached using async_lru.
         """
         # Step 1: Candidate Generation (using Codex's search)
         candidates: List[Dict[str, Any]] = await self.codex_client.search(text, top_k=self.candidate_top_k)
@@ -74,17 +74,12 @@ class VectorLinker(BaseLinker):
 
         # Step 2: Semantic Re-ranking
         # Encode the query (mention OR context)
-        loop = asyncio.get_running_loop()
-        query_embedding = await loop.run_in_executor(
-            None, lambda: self.model.encode(query_text, convert_to_tensor=True)
-        )
+        query_embedding = await run_blocking(self.model.encode, query_text, convert_to_tensor=True)
 
         # Encode the candidates (definitions/names)
         # We use the 'concept_name' for encoding.
         candidate_names = [str(c.get("concept_name", "")) for c in candidates]
-        candidate_embeddings = await loop.run_in_executor(
-            None, lambda: self.model.encode(candidate_names, convert_to_tensor=True)
-        )
+        candidate_embeddings = await run_blocking(self.model.encode, candidate_names, convert_to_tensor=True)
 
         # Compute cosine similarity
         # Operations on tensors are fast enough to run in main thread usually,
@@ -149,7 +144,6 @@ class VectorLinker(BaseLinker):
             return self._build_linked_entity(entity, strategy)
 
         # Step 1: Get Candidates
-        # TODO: Restore caching mechanism compatible with async
         candidates = await self._get_candidates_impl(text)
 
         if not candidates:

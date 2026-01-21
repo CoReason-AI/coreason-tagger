@@ -12,9 +12,8 @@ import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from coreason_tagger import __version__
-from coreason_tagger.main import app, get_tagger
+from coreason_tagger.main import app
 from coreason_tagger.schema import AssertionStatus, ExtractionStrategy, LinkedEntity
-from coreason_tagger.tagger import CoreasonTagger
 from typer.testing import CliRunner
 
 runner = CliRunner()
@@ -98,16 +97,3 @@ def test_tag_command_error(mock_get_tagger: MagicMock) -> None:
 
     assert result.exit_code == 1
     assert "Error: Pipeline failure" in result.stderr
-
-
-def test_get_tagger_factory() -> None:
-    """
-    Test the factory function creates a valid CoreasonTagger instance.
-    We mock the heavy dependencies to make this unit test fast.
-    """
-    with patch("coreason_tagger.main.GLiNERExtractor"), patch("coreason_tagger.main.VectorLinker"):
-        tagger = get_tagger()
-        assert isinstance(tagger, CoreasonTagger)
-        assert tagger.ner is not None
-        assert tagger.assertion is not None
-        assert tagger.linker is not None
