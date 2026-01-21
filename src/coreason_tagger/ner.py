@@ -77,14 +77,14 @@ class GLiNERExtractor(BaseExtractor):
         if not 0.0 <= threshold <= 1.0:
             raise ValueError(f"Threshold must be between 0.0 and 1.0, got {threshold}")
 
-    async def extract(self, text: str, labels: list[str], threshold: float = 0.5) -> list[EntityCandidate]:
+    async def extract(self, text: str, labels: list[str], threshold: float = 0.3) -> list[EntityCandidate]:
         """
         Extract entities from text using the provided labels.
 
         Args:
             text (str): The input text to process.
             labels (list[str]): A list of entity types to detect.
-            threshold (float): The confidence threshold. Defaults to 0.5.
+            threshold (float): The confidence threshold. Defaults to 0.3.
 
         Returns:
             list[EntityCandidate]: A list of detected entity candidates.
@@ -109,7 +109,7 @@ class GLiNERExtractor(BaseExtractor):
         return [self._build_candidate(entity) for entity in raw_entities]
 
     async def extract_batch(
-        self, texts: list[str], labels: list[str], threshold: float = 0.5
+        self, texts: list[str], labels: list[str], threshold: float = 0.3
     ) -> list[list[EntityCandidate]]:
         """
         Extract entities from a batch of texts using the provided labels.
@@ -117,7 +117,7 @@ class GLiNERExtractor(BaseExtractor):
         Args:
             texts (list[str]): The list of input texts to process.
             labels (list[str]): A list of entity types to detect.
-            threshold (float): The confidence threshold. Defaults to 0.5.
+            threshold (float): The confidence threshold. Defaults to 0.3.
 
         Returns:
             list[list[EntityCandidate]]: A list of lists, where each inner list contains
