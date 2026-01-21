@@ -12,7 +12,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 from coreason_tagger.ner import GLiNERExtractor
-from coreason_tagger.schema import ExtractedSpan
+from coreason_tagger.schema import EntityCandidate
 
 
 class TestGLiNERExtractor(unittest.TestCase):
@@ -51,12 +51,12 @@ class TestGLiNERExtractor(unittest.TestCase):
         mock_model_instance.predict_entities.assert_called_once_with(text, labels, threshold=0.5)
 
         self.assertEqual(len(results), 2)
-        self.assertIsInstance(results[0], ExtractedSpan)
+        self.assertIsInstance(results[0], EntityCandidate)
         self.assertEqual(results[0].text, "headache")
         self.assertEqual(results[0].label, "Symptom")
         self.assertEqual(results[0].start, 0)
         self.assertEqual(results[0].end, 8)
-        self.assertEqual(results[0].score, 0.95)
+        self.assertEqual(results[0].confidence, 0.95)
 
         self.assertEqual(results[1].text, "ibuprofen")
         self.assertEqual(results[1].label, "Drug")
@@ -226,4 +226,4 @@ class TestGLiNERExtractor(unittest.TestCase):
         results = extractor.extract("maybe a cold", ["Condition"])
 
         self.assertEqual(len(results), 1)
-        self.assertEqual(results[0].score, 0.15)
+        self.assertEqual(results[0].confidence, 0.15)

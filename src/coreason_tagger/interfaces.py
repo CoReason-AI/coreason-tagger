@@ -11,7 +11,12 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Protocol
 
-from coreason_tagger.schema import AssertionStatus, ExtractedSpan
+from coreason_tagger.schema import (
+    AssertionStatus,
+    EntityCandidate,
+    ExtractionStrategy,
+    LinkedEntity,
+)
 
 
 class CodexClient(Protocol):
@@ -56,7 +61,7 @@ class BaseNERExtractor(ABC):
     """Abstract base class for NER extraction strategies."""
 
     @abstractmethod
-    def extract(self, text: str, labels: List[str], threshold: float = 0.5) -> List[ExtractedSpan]:
+    def extract(self, text: str, labels: List[str], threshold: float = 0.5) -> List[EntityCandidate]:
         """
         Extract entities from text using the provided labels.
 
@@ -66,12 +71,12 @@ class BaseNERExtractor(ABC):
             threshold (float): The confidence threshold for extraction. Defaults to 0.5.
 
         Returns:
-            List[ExtractedSpan]: A list of detected entity spans.
+            List[EntityCandidate]: A list of detected entity candidates.
         """
         pass  # pragma: no cover
 
     @abstractmethod
-    def extract_batch(self, texts: List[str], labels: List[str], threshold: float = 0.5) -> List[List[ExtractedSpan]]:
+    def extract_batch(self, texts: List[str], labels: List[str], threshold: float = 0.5) -> List[List[EntityCandidate]]:
         """
         Extract entities from a batch of texts using the provided labels.
 
@@ -81,8 +86,8 @@ class BaseNERExtractor(ABC):
             threshold (float): The confidence threshold for extraction. Defaults to 0.5.
 
         Returns:
-            List[List[ExtractedSpan]]: A list of lists, where each inner list contains
-                                       detected entity spans for the corresponding text.
+            List[List[EntityCandidate]]: A list of lists, where each inner list contains
+                                       detected entity candidates for the corresponding text.
         """
         pass  # pragma: no cover
 
@@ -91,7 +96,7 @@ class BaseLinker(ABC):
     """Abstract base class for entity linking strategies."""
 
     @abstractmethod
-    def link(self, entity: ExtractedSpan) -> Dict[str, Any]:
+    def resolve(self, entity: EntityCandidate, context: str, strategy: ExtractionStrategy) -> LinkedEntity:
         """
         Link an extracted entity to a concept in the codex.
         """

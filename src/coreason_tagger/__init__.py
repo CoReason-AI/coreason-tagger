@@ -11,7 +11,12 @@
 from coreason_tagger.assertion_detector import RegexBasedAssertionDetector
 from coreason_tagger.interfaces import BaseAssertionDetector, BaseLinker, BaseNERExtractor
 from coreason_tagger.ner import GLiNERExtractor
-from coreason_tagger.schema import AssertionStatus, ExtractedSpan, TaggedEntity
+from coreason_tagger.schema import (
+    AssertionStatus,
+    EntityCandidate,
+    ExtractionStrategy,
+    LinkedEntity,
+)
 
 __version__ = "0.1.0"
 
@@ -22,7 +27,8 @@ __all__ = [
     "GLiNERExtractor",
     "RegexBasedAssertionDetector",
     "AssertionStatus",
-    "TaggedEntity",
-    "ExtractedSpan",
+    "LinkedEntity",
+    "EntityCandidate",
+    "ExtractionStrategy",
     "__version__",
 ]

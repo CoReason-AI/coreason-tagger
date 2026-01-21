@@ -11,7 +11,7 @@
 from typing import Optional
 
 from coreason_tagger.interfaces import BaseAssertionDetector, BaseLinker, BaseNERExtractor
-from coreason_tagger.schema import ExtractedSpan, TaggedEntity
+from coreason_tagger.schema import EntityCandidate, ExtractionStrategy, LinkedEntity
 
 
 class CoreasonTagger:
@@ -38,79 +38,82 @@ class CoreasonTagger:
         self.assertion = assertion
         self.linker = linker
 
-    def _process_span(self, text: str, span: ExtractedSpan) -> Optional[TaggedEntity]:
+    def _process_candidate(
+        self, text: str, candidate: EntityCandidate, strategy: ExtractionStrategy
+    ) -> Optional[LinkedEntity]:
         """
-        Process a single span: contextualize (assertion) and link.
+        Process a single candidate: contextualize (assertion) and link.
 
         Args:
             text: The full context text.
-            span: The extracted entity span.
+            candidate: The extracted entity candidate.
+            strategy: The extraction strategy used.
 
         Returns:
-            Optional[TaggedEntity]: The processed entity, or None if linking failed.
+            Optional[LinkedEntity]: The processed entity, or None if linking failed.
         """
         # Guard: If span text is empty, it's useless and will fail validation.
-        if not span.text or not span.text.strip():
+        if not candidate.text or not candidate.text.strip():
             return None
 
         # 2. Contextualize (Assertion)
         assertion_status = self.assertion.detect(
             text=text,
-            span_text=span.text,
-            span_start=span.start,
-            span_end=span.end,
+            span_text=candidate.text,
+            span_start=candidate.start,
+            span_end=candidate.end,
         )
 
         # 3. Link (Vector Linking)
-        link_result = self.linker.link(span)
+        linked_entity = self.linker.resolve(candidate, text, strategy)
 
-        # If linking fails (returns empty dict), we skip this entity
-        # per the "A string without an ID is useless" philosophy.
-        if not link_result:
+        # If linking fails (concept_id is None), we skip this entity
+        if not linked_entity.concept_id:
             return None
 
-        concept_id = link_result.get("concept_id")
-        if not concept_id:
-            # Malformed result or missing ID -> Useless
-            return None
+        # Update assertion status (Linker returns default PRESENT)
+        linked_entity.assertion = assertion_status
 
-        # Construct the final entity
-        return TaggedEntity(
-            span_text=span.text,
-            label=span.label,
-            concept_id=concept_id,
-            concept_name=link_result.get("concept_name", ""),
-            link_confidence=link_result.get("link_confidence", 0.0),
-            assertion=assertion_status,
-        )
+        return linked_entity
 
-    def tag(self, text: str, labels: list[str]) -> list[TaggedEntity]:
+    def tag(
+        self,
+        text: str,
+        labels: list[str],
+        strategy: ExtractionStrategy = ExtractionStrategy.SPEED_GLINER,
+    ) -> list[LinkedEntity]:
         """
         Process text to extract, contextualize, and link entities.
 
         Args:
             text: The input text.
             labels: The list of labels to extract (passed to NER).
+            strategy: The strategy to attribute to the entities.
 
         Returns:
-            List[TaggedEntity]: The list of fully processed entities.
+            list[LinkedEntity]: The list of fully processed entities.
         """
         if not text:
             return []
 
         # 1. Extract (NER)
-        spans = self.ner.extract(text, labels)
+        candidates = self.ner.extract(text, labels)
 
-        tagged_entities: list[TaggedEntity] = []
+        linked_entities: list[LinkedEntity] = []
 
-        for span in spans:
-            entity = self._process_span(text, span)
+        for candidate in candidates:
+            entity = self._process_candidate(text, candidate, strategy)
             if entity:
-                tagged_entities.append(entity)
+                linked_entities.append(entity)
 
-        return tagged_entities
+        return linked_entities
 
-    def tag_batch(self, texts: list[str], labels: list[str]) -> list[list[TaggedEntity]]:
+    def tag_batch(
+        self,
+        texts: list[str],
+        labels: list[str],
+        strategy: ExtractionStrategy = ExtractionStrategy.SPEED_GLINER,
+    ) -> list[list[LinkedEntity]]:
         """
         Process a batch of texts to extract, contextualize, and link entities.
         Optimized for batch NER processing.
@@ -118,26 +121,26 @@ class CoreasonTagger:
         Args:
             texts: The list of input texts.
             labels: The list of labels to extract.
+            strategy: The strategy to attribute to the entities.
 
         Returns:
-            List[List[TaggedEntity]]: A list of lists of processed entities, corresponding to the input texts.
+            list[list[LinkedEntity]]: A list of lists of processed entities, corresponding to the input texts.
         """
         if not texts:
             return []
 
         # 1. Batch Extract (NER)
-        batch_spans = self.ner.extract_batch(texts, labels)
+        batch_candidates = self.ner.extract_batch(texts, labels)
 
-        batch_results: list[list[TaggedEntity]] = []
+        batch_results: list[list[LinkedEntity]] = []
 
-        # Process each text's spans
-        # zip(strict=True) ensures alignment, though extract_batch guarantees it too
-        for text, spans in zip(texts, batch_spans, strict=True):
-            tagged_entities: list[TaggedEntity] = []
-            for span in spans:
-                entity = self._process_span(text, span)
+        # Process each text's candidates
+        for text, candidates in zip(texts, batch_candidates, strict=True):
+            linked_entities: list[LinkedEntity] = []
+            for candidate in candidates:
+                entity = self._process_candidate(text, candidate, strategy)
                 if entity:
-                    tagged_entities.append(entity)
-            batch_results.append(tagged_entities)
+                    linked_entities.append(entity)
+            batch_results.append(linked_entities)
 
         return batch_results

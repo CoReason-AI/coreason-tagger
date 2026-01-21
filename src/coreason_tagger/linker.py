@@ -15,7 +15,7 @@ from sentence_transformers import SentenceTransformer, util
 
 from coreason_tagger.config import settings
 from coreason_tagger.interfaces import BaseLinker, CodexClient
-from coreason_tagger.schema import ExtractedSpan
+from coreason_tagger.schema import EntityCandidate, ExtractionStrategy, LinkedEntity
 
 
 class VectorLinker(BaseLinker):
@@ -94,11 +94,34 @@ class VectorLinker(BaseLinker):
         # Merge the re-ranked score into the result
         # Note: The codex might return a 'score' (BM25), but we overwrite/augment with semantic score.
         result = best_candidate.copy()
-        result["link_confidence"] = best_score
+        result["link_score"] = best_score
 
         return result
 
-    def link(self, entity: ExtractedSpan) -> Dict[str, Any]:
+    def _build_linked_entity(
+        self,
+        entity: EntityCandidate,
+        strategy: ExtractionStrategy,
+        match: Optional[Dict[str, Any]] = None,
+    ) -> LinkedEntity:
+        """
+        Helper to construct a LinkedEntity from a candidate and an optional match.
+        Reduces code duplication for returning results.
+        """
+        base_data = entity.model_dump()
+
+        if match:
+            return LinkedEntity(
+                **base_data,
+                strategy_used=strategy,
+                concept_id=match.get("concept_id"),
+                concept_name=match.get("concept_name"),
+                link_score=match.get("link_score", 0.0),
+            )
+
+        return LinkedEntity(**base_data, strategy_used=strategy)
+
+    def resolve(self, entity: EntityCandidate, context: str, strategy: ExtractionStrategy) -> LinkedEntity:
         """
         Link an extracted entity to a concept in the codex.
 
@@ -108,30 +131,37 @@ class VectorLinker(BaseLinker):
            and select the best match based on cosine similarity.
 
         Args:
-            entity (ExtractedSpan): The entity to link.
+            entity (EntityCandidate): The entity to link.
+            context (str): The full context text.
+            strategy (ExtractionStrategy): The strategy used for extraction.
 
         Returns:
-            Dict[str, Any]: The linked concept data, including 'concept_id', 'concept_name',
-                            and 'link_confidence'. Returns empty dict if no link found.
+            LinkedEntity: The linked entity.
         """
         text = entity.text
         if not text:
-            return {}
+            # Return entity without link
+            return self._build_linked_entity(entity, strategy)
 
         # Step 1: Get Candidates (Cached based on mention text)
         candidates = self._cached_get_candidates(text)
 
         if not candidates:
-            return {}
+            return self._build_linked_entity(entity, strategy)
 
         # Step 2: Semantic Re-ranking (Context-Aware)
         # If context is available, we use it for the query embedding to disambiguate.
         # We apply windowing to focus on the immediate context around the mention.
         query_text = text
-        if entity.context:
+        if context:
             # Windowing strategy: configurable chars before and after (approx sentence size)
             start_idx = max(0, entity.start - self.window_size)
-            end_idx = min(len(entity.context), entity.end + self.window_size)
-            query_text = entity.context[start_idx:end_idx]
+            end_idx = min(len(context), entity.end + self.window_size)
+            query_text = context[start_idx:end_idx]
 
-        return self._rerank(query_text, candidates)
+        best_match = self._rerank(query_text, candidates)
+
+        if not best_match:  # pragma: no cover
+            return self._build_linked_entity(entity, strategy)
+
+        return self._build_linked_entity(entity, strategy, best_match)
