@@ -100,6 +100,6 @@ def test_get_tagger_factory() -> None:
     with patch("coreason_tagger.main.GLiNERExtractor"), patch("coreason_tagger.main.VectorLinker"):
         tagger = get_tagger()
         assert isinstance(tagger, CoreasonTagger)
-        assert tagger.ner is not None
+        assert tagger.ner_or_factory is not None
         assert tagger.assertion is not None
         assert tagger.linker is not None

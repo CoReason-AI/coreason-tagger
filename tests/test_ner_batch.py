@@ -57,7 +57,7 @@ async def test_gliner_extract_batch_success(mock_gliner_model: MagicMock) -> Non
     assert span.confidence == 0.99
     assert span.source_model is not None
 
-    mock_gliner_model.batch_predict_entities.assert_called_once_with(texts, labels, threshold=0.5)
+    mock_gliner_model.batch_predict_entities.assert_called_once_with(texts, labels, threshold=0.3)
 
 
 @pytest.mark.asyncio

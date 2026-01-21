@@ -28,6 +28,7 @@ class Settings(BaseSettings):
 
     # NER Configuration
     NER_MODEL_NAME: str = "urchade/gliner_small-v2.1"
+    NUNER_MODEL_NAME: str = "numind/NuNER-Zero"
 
     # Linker Configuration
     LINKER_MODEL_NAME: str = "all-MiniLM-L6-v2"

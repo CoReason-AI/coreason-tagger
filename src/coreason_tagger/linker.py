@@ -70,7 +70,7 @@ class VectorLinker(BaseLinker):
             self.model = await get_sentence_transformer(self.model_name)
         return self.model
 
-    @alru_cache(maxsize=1024)  # type: ignore[misc]
+    @alru_cache(maxsize=1024)
     async def _get_candidates_impl(self, text: str) -> List[Dict[str, Any]]:
         """
         Implementation of candidate generation using Codex with caching.

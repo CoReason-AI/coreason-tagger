@@ -71,7 +71,7 @@ class TestGLiNERExtractor:
         results = await extractor.extract(text, labels)
 
         # Verify that the model was called with the default threshold
-        mock_model_instance.predict_entities.assert_called_once_with(text, labels, threshold=0.5)
+        mock_model_instance.predict_entities.assert_called_once_with(text, labels, threshold=0.3)
 
         assert len(results) == 2
         assert isinstance(results[0], EntityCandidate)
