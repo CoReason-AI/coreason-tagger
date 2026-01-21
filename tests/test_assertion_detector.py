@@ -18,15 +18,15 @@ def detector() -> RegexBasedAssertionDetector:
     return RegexBasedAssertionDetector()
 
 
-def test_present_simple(detector: RegexBasedAssertionDetector) -> None:
+async def test_present_simple(detector: RegexBasedAssertionDetector) -> None:
     text = "Patient has diabetes."
     span = "diabetes"
     start = text.find(span)
     end = start + len(span)
-    assert detector.detect(text, span, start, end) == AssertionStatus.PRESENT
+    assert await detector.detect(text, span, start, end) == AssertionStatus.PRESENT
 
 
-def test_absent_simple(detector: RegexBasedAssertionDetector) -> None:
+async def test_absent_simple(detector: RegexBasedAssertionDetector) -> None:
     examples = [
         "Patient denies diabetes.",
         "No signs of diabetes.",
@@ -38,10 +38,10 @@ def test_absent_simple(detector: RegexBasedAssertionDetector) -> None:
         span = "diabetes"
         start = text.find(span)
         end = start + len(span)
-        assert detector.detect(text, span, start, end) == AssertionStatus.ABSENT
+        assert await detector.detect(text, span, start, end) == AssertionStatus.ABSENT
 
 
-def test_possible_simple(detector: RegexBasedAssertionDetector) -> None:
+async def test_possible_simple(detector: RegexBasedAssertionDetector) -> None:
     examples = [
         "Possible diabetes.",
         "Rule out diabetes.",
@@ -53,10 +53,10 @@ def test_possible_simple(detector: RegexBasedAssertionDetector) -> None:
         span = "diabetes"
         start = text.find(span)
         end = start + len(span)
-        assert detector.detect(text, span, start, end) == AssertionStatus.POSSIBLE
+        assert await detector.detect(text, span, start, end) == AssertionStatus.POSSIBLE
 
 
-def test_family_history(detector: RegexBasedAssertionDetector) -> None:
+async def test_family_history(detector: RegexBasedAssertionDetector) -> None:
     examples = [
         "Mother had diabetes.",
         "Family history of diabetes.",
@@ -67,10 +67,10 @@ def test_family_history(detector: RegexBasedAssertionDetector) -> None:
         span = "diabetes"
         start = text.find(span)
         end = start + len(span)
-        assert detector.detect(text, span, start, end) == AssertionStatus.FAMILY
+        assert await detector.detect(text, span, start, end) == AssertionStatus.FAMILY
 
 
-def test_history_personal(detector: RegexBasedAssertionDetector) -> None:
+async def test_history_personal(detector: RegexBasedAssertionDetector) -> None:
     examples = [
         "History of diabetes.",
         "Past medical history: diabetes.",
@@ -81,10 +81,10 @@ def test_history_personal(detector: RegexBasedAssertionDetector) -> None:
         span = "diabetes"
         start = text.find(span)
         end = start + len(span)
-        assert detector.detect(text, span, start, end) == AssertionStatus.HISTORY
+        assert await detector.detect(text, span, start, end) == AssertionStatus.HISTORY
 
 
-def test_conditional(detector: RegexBasedAssertionDetector) -> None:
+async def test_conditional(detector: RegexBasedAssertionDetector) -> None:
     examples = [
         "Return if diabetes worsens.",
         "Monitor for diabetes.",
@@ -94,28 +94,28 @@ def test_conditional(detector: RegexBasedAssertionDetector) -> None:
         span = "diabetes"
         start = text.find(span)
         end = start + len(span)
-        assert detector.detect(text, span, start, end) == AssertionStatus.CONDITIONAL
+        assert await detector.detect(text, span, start, end) == AssertionStatus.CONDITIONAL
 
 
-def test_edge_cases_double_negation(detector: RegexBasedAssertionDetector) -> None:
+async def test_edge_cases_double_negation(detector: RegexBasedAssertionDetector) -> None:
     # "not ruled out" contains "not" (Absent) and "rule out" (Possible)
     # Correct logic should be POSSIBLE
     text = "Diabetes not ruled out."
     span = "Diabetes"
     start = text.find(span)
     end = start + len(span)
-    assert detector.detect(text, span, start, end) == AssertionStatus.POSSIBLE
+    assert await detector.detect(text, span, start, end) == AssertionStatus.POSSIBLE
 
     text = "Cannot rule out diabetes."
     start = text.find("diabetes")
     end = start + len("diabetes")
-    assert detector.detect(text, "diabetes", start, end) == AssertionStatus.POSSIBLE
+    assert await detector.detect(text, "diabetes", start, end) == AssertionStatus.POSSIBLE
 
 
-def test_priority_overrides(detector: RegexBasedAssertionDetector) -> None:
+async def test_priority_overrides(detector: RegexBasedAssertionDetector) -> None:
     # Family history should override negation
     text = "Mother does not have diabetes."
     span = "diabetes"
     start = text.find(span)
     end = start + len(span)
-    assert detector.detect(text, span, start, end) == AssertionStatus.FAMILY
+    assert await detector.detect(text, span, start, end) == AssertionStatus.FAMILY

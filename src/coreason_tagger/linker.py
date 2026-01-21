@@ -8,13 +8,15 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
-import functools
+import asyncio
 from typing import Any, Dict, List, Optional
 
+from async_lru import alru_cache
 from sentence_transformers import SentenceTransformer, util
 
 from coreason_tagger.config import settings
 from coreason_tagger.interfaces import BaseLinker, CodexClient
+from coreason_tagger.registry import get_sentence_transformer
 from coreason_tagger.schema import EntityCandidate, ExtractionStrategy, LinkedEntity
 
 
@@ -50,38 +52,54 @@ class VectorLinker(BaseLinker):
         self.window_size = window_size or settings.LINKER_WINDOW_SIZE
         self.candidate_top_k = candidate_top_k or settings.LINKER_CANDIDATE_TOP_K
 
-        # Load the model.
-        # Note: In production, this should be lazy-loaded or managed by a model registry.
-        self.model = SentenceTransformer(self.model_name)
+        # Model is loaded lazily via registry
+        self.model: Optional[SentenceTransformer] = None
 
-        # Create an instance-level cache for candidate generation.
-        # We cache only the retrieval step, not the re-ranking step,
-        # because re-ranking is now context-dependent.
-        self._cached_get_candidates = functools.lru_cache(maxsize=1024)(self._get_candidates_impl)
+        # Replace manual cache with alru_cache wrapper on the method
+        # To make it per-instance, we could use a wrapper, but alru_cache on method is fine
+        # if we accept shared cache or if the method key includes self (which it does by default).
+        # alru_cache uses the arguments as key. If 'self' is in arguments, it keys by instance.
+        # But 'self' must be hashable. VectorLinker instance is hashable (default ID).
+        # So @alru_cache on method works per instance distinctness if instances are distinct.
+        # However, we want to optimize.
+        # Let's wrap the implementation method.
 
-    def _get_candidates_impl(self, text: str) -> List[Dict[str, Any]]:
+    async def _get_model(self) -> SentenceTransformer:
+        """Lazy load model via registry."""
+        if self.model is None:
+            self.model = await get_sentence_transformer(self.model_name)
+        return self.model
+
+    @alru_cache(maxsize=1024)  # type: ignore[misc]
+    async def _get_candidates_impl(self, text: str) -> List[Dict[str, Any]]:
         """
-        Implementation of candidate generation using Codex.
+        Implementation of candidate generation using Codex with caching.
         """
         # Step 1: Candidate Generation (using Codex's search)
-        candidates: List[Dict[str, Any]] = self.codex_client.search(text, top_k=self.candidate_top_k)
+        candidates: List[Dict[str, Any]] = await self.codex_client.search(text, top_k=self.candidate_top_k)
         return candidates
 
-    def _rerank(self, query_text: str, candidates: List[Dict[str, Any]]) -> Dict[str, Any]:
+    async def _rerank(self, query_text: str, candidates: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         Perform semantic re-ranking using the Bi-Encoder.
         """
         if not candidates:
             return {}
 
+        model = await self._get_model()
+
         # Step 2: Semantic Re-ranking
+        loop = asyncio.get_running_loop()
+
         # Encode the query (mention OR context)
-        query_embedding = self.model.encode(query_text, convert_to_tensor=True)
+        query_embedding = await loop.run_in_executor(None, lambda: model.encode(query_text, convert_to_tensor=True))
 
         # Encode the candidates (definitions/names)
         # We use the 'concept_name' for encoding.
         candidate_names = [str(c.get("concept_name", "")) for c in candidates]
-        candidate_embeddings = self.model.encode(candidate_names, convert_to_tensor=True)
+        candidate_embeddings = await loop.run_in_executor(
+            None, lambda: model.encode(candidate_names, convert_to_tensor=True)
+        )
 
         # Compute cosine similarity
         cosine_scores = util.cos_sim(query_embedding, candidate_embeddings)[0]
@@ -92,7 +110,6 @@ class VectorLinker(BaseLinker):
         best_candidate = candidates[best_idx]
 
         # Merge the re-ranked score into the result
-        # Note: The codex might return a 'score' (BM25), but we overwrite/augment with semantic score.
         result = best_candidate.copy()
         result["link_score"] = best_score
 
@@ -121,45 +138,28 @@ class VectorLinker(BaseLinker):
 
         return LinkedEntity(**base_data, strategy_used=strategy)
 
-    def resolve(self, entity: EntityCandidate, context: str, strategy: ExtractionStrategy) -> LinkedEntity:
+    async def resolve(self, entity: EntityCandidate, context: str, strategy: ExtractionStrategy) -> LinkedEntity:
         """
         Link an extracted entity to a concept in the codex.
-
-        Pipeline:
-        1. Candidate Generation: Query the codex (BM25/Sparse) to get top candidates.
-        2. Semantic Re-ranking: Encode the mention and candidates using the Bi-Encoder
-           and select the best match based on cosine similarity.
-
-        Args:
-            entity (EntityCandidate): The entity to link.
-            context (str): The full context text.
-            strategy (ExtractionStrategy): The strategy used for extraction.
-
-        Returns:
-            LinkedEntity: The linked entity.
         """
         text = entity.text
         if not text:
-            # Return entity without link
             return self._build_linked_entity(entity, strategy)
 
-        # Step 1: Get Candidates (Cached based on mention text)
-        candidates = self._cached_get_candidates(text)
+        # Step 1: Get Candidates (Cached)
+        candidates = await self._get_candidates_impl(text)
 
         if not candidates:
             return self._build_linked_entity(entity, strategy)
 
         # Step 2: Semantic Re-ranking (Context-Aware)
-        # If context is available, we use it for the query embedding to disambiguate.
-        # We apply windowing to focus on the immediate context around the mention.
         query_text = text
         if context:
-            # Windowing strategy: configurable chars before and after (approx sentence size)
             start_idx = max(0, entity.start - self.window_size)
             end_idx = min(len(context), entity.end + self.window_size)
             query_text = context[start_idx:end_idx]
 
-        best_match = self._rerank(query_text, candidates)
+        best_match = await self._rerank(query_text, candidates)
 
         if not best_match:  # pragma: no cover
             return self._build_linked_entity(entity, strategy)

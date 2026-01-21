@@ -9,7 +9,7 @@
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
 from typing import Generator
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import torch
@@ -51,7 +51,8 @@ def mock_sentence_transformer_integration() -> Generator[MagicMock, None, None]:
         yield MockClass
 
 
-def test_story_a_family_history(mock_sentence_transformer_integration: MagicMock) -> None:
+@pytest.mark.asyncio
+async def test_story_a_family_history(mock_sentence_transformer_integration: MagicMock) -> None:
     """
     Test Story A: The "Family History" Trap
     Text: "Patient's mother died of breast cancer."
@@ -63,7 +64,7 @@ def test_story_a_family_history(mock_sentence_transformer_integration: MagicMock
 
     # 1. Setup Dependencies
     # Mock NER to extract "breast cancer"
-    mock_ner = MagicMock()
+    mock_ner = AsyncMock()
     mock_ner.extract.return_value = [
         EntityCandidate(
             text="breast cancer",
@@ -81,7 +82,7 @@ def test_story_a_family_history(mock_sentence_transformer_integration: MagicMock
     tagger = CoreasonTagger(ner=mock_ner, assertion=assertion_detector, linker=linker)
 
     # 2. Run Tagger
-    results = tagger.tag(text, labels=["Condition"])
+    results = await tagger.tag(text, labels=["Condition"])
 
     # 3. Validation
     assert len(results) == 1
@@ -95,7 +96,8 @@ def test_story_a_family_history(mock_sentence_transformer_integration: MagicMock
     assert entity.assertion == AssertionStatus.FAMILY
 
 
-def test_story_b_ambiguous_drug(mock_sentence_transformer_integration: MagicMock) -> None:
+@pytest.mark.asyncio
+async def test_story_b_ambiguous_drug(mock_sentence_transformer_integration: MagicMock) -> None:
     """
     Test Story B: The "Ambiguous Drug"
     Text: "Administered 50mg of Lasix."
@@ -106,7 +108,7 @@ def test_story_b_ambiguous_drug(mock_sentence_transformer_integration: MagicMock
     text = "Administered 50mg of Lasix."
 
     # 1. Setup Dependencies
-    mock_ner = MagicMock()
+    mock_ner = AsyncMock()
     mock_ner.extract.return_value = [
         EntityCandidate(
             text="Lasix",
@@ -124,7 +126,7 @@ def test_story_b_ambiguous_drug(mock_sentence_transformer_integration: MagicMock
     tagger = CoreasonTagger(ner=mock_ner, assertion=assertion_detector, linker=linker)
 
     # 2. Run Tagger
-    results = tagger.tag(text, labels=["Drug"])
+    results = await tagger.tag(text, labels=["Drug"])
 
     # 3. Validation
     assert len(results) == 1
