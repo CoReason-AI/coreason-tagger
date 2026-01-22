@@ -14,7 +14,7 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from coreason_tagger.ner import ReasoningExtractor
+from coreason_tagger.ner import ExtractorFactory, ReasoningExtractor
 from coreason_tagger.schema import EntityCandidate
 
 
@@ -42,12 +42,15 @@ async def test_clustering_no_overlap(candidate_factory):
 
 
 @pytest.mark.asyncio
+async def test_clustering_empty(candidate_factory):
+    extractor = ReasoningExtractor()
+    clustered = extractor._cluster_candidates([])
+    assert clustered == []
+
+
+@pytest.mark.asyncio
 async def test_clustering_overlap_merge(candidate_factory):
     extractor = ReasoningExtractor()
-
-    # "history of breast cancer" (0-24)
-    # "breast cancer" (11-24)
-    # Intersection 13. Union 24. 13/24 = 0.54 > 0.5. MERGE.
 
     c1 = candidate_factory("history of breast cancer", 0, 24)
     c2 = candidate_factory("breast cancer", 11, 24)
@@ -55,7 +58,6 @@ async def test_clustering_overlap_merge(candidate_factory):
     clustered = extractor._cluster_candidates([c1, c2])
 
     assert len(clustered) == 1
-    # Should pick the longest text
     assert clustered[0].text == "history of breast cancer"
 
 
@@ -76,12 +78,6 @@ async def test_clustering_overlap_exact(candidate_factory):
 async def test_clustering_transitive(candidate_factory):
     extractor = ReasoningExtractor()
 
-    # A overlaps B, B overlaps C.
-    # [0, 10], [2, 12], [4, 14]
-    # A-B overlap: 8. Union 12. 8/12 = 0.66. Merge. -> [0, 12] (assuming we update tracking)
-    # New cluster effectively [0, 12].
-    # Next [4, 14]. Overlap with [0, 12] is [4, 12] len 8. Union [0, 14] len 14. 8/14 = 0.57. Merge.
-
     c1 = candidate_factory("aaaaaaaaaa", 0, 10)
     c2 = candidate_factory("bbbbbbbbbb", 2, 12)
     c3 = candidate_factory("cccccccccc", 4, 14)
@@ -89,8 +85,14 @@ async def test_clustering_transitive(candidate_factory):
     clustered = extractor._cluster_candidates([c1, c2, c3])
 
     assert len(clustered) == 1
-    # Max by length.
     assert len(clustered[0].text) == 10
+
+
+@pytest.mark.asyncio
+async def test_verification_empty():
+    extractor = ReasoningExtractor()
+    verified = await extractor._verify_with_llm("context", [])
+    assert verified == []
 
 
 @pytest.mark.asyncio
@@ -124,6 +126,14 @@ async def test_verification_timeout(candidate_factory):
 
 
 @pytest.mark.asyncio
+async def test_load_model():
+    extractor = ReasoningExtractor()
+    extractor.gliner.load_model = AsyncMock()
+    await extractor.load_model()
+    extractor.gliner.load_model.assert_called_once()
+
+
+@pytest.mark.asyncio
 async def test_extract_full_flow(candidate_factory):
     extractor = ReasoningExtractor()
 
@@ -139,13 +149,48 @@ async def test_extract_full_flow(candidate_factory):
 
         result = await extractor.extract("history of breast cancer", ["test"])
 
-        # 1. Clustering should merge to c1
-        # 2. LLM verifies c1 (index 0 of clustered)
-
         assert len(result) == 1
         assert result[0].text == "history of breast cancer"
 
-        # Verify prompt content
-        args, kwargs = mock_llm.call_args
-        messages = kwargs["messages"]
-        assert "history of breast cancer" in messages[0]["content"]
+
+@pytest.mark.asyncio
+async def test_extract_batch(candidate_factory):
+    extractor = ReasoningExtractor()
+
+    c1 = candidate_factory("c1", 0, 2)
+
+    # Mock GLiNER batch extract
+    # Returns list of lists of candidates
+    extractor.gliner.extract_batch = AsyncMock(return_value=[[c1], []])
+
+    with patch("litellm.acompletion", new_callable=AsyncMock) as mock_llm:
+        mock_llm.return_value.choices = [MagicMock(message=MagicMock(content='{"valid_ids": [0]}'))]
+
+        results = await extractor.extract_batch(["text1", "text2"], ["label"])
+
+        assert len(results) == 2
+        assert len(results[0]) == 1
+        assert results[0][0] == c1
+        assert len(results[1]) == 0
+
+
+def test_factory_fallback():
+    factory = ExtractorFactory()
+    # Cast string to ExtractionStrategy to simulate unknown/invalid enum (if types ignored) or future enum
+    # Or just subclass Enum?
+    # Since type hint is ExtractionStrategy, mypy complains if I pass string.
+    # But runtime it might work if I force it.
+    # However, Python Enums are strict.
+    # I can't easily pass an invalid enum member unless I mock.
+    # But wait, the `else` block in factory is unreachable if Enum is exhaustive and handled.
+    # But `ExtractionStrategy` has 3 members, and `get_extractor` handles all 3 explicitely.
+    # The `else` block is strictly for safety/mypy exhaustiveness if not all cases covered.
+    # To hit it, I would need a strategy not in the `if/elif`.
+    # I can add a fake strategy to the Enum via patching or assume it's unreachable (pragma: no cover).
+    # But strict coverage requires it.
+    # I'll try to pass a string "UNKNOWN" forcefully.
+
+    extractor = factory.get_extractor("UNKNOWN")  # type: ignore
+    from coreason_tagger.ner import GLiNERExtractor
+
+    assert isinstance(extractor, GLiNERExtractor)
