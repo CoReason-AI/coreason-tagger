@@ -12,6 +12,7 @@ from unittest.mock import patch
 
 import pytest
 import requests
+
 from coreason_tagger.codex_real import RealCoreasonCodex
 
 

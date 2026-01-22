@@ -12,12 +12,14 @@ import asyncio
 from typing import Any, Dict, List, Optional
 
 from async_lru import alru_cache
+from loguru import logger
 from sentence_transformers import SentenceTransformer, util
 
 from coreason_tagger.config import settings
 from coreason_tagger.interfaces import BaseLinker, CodexClient
 from coreason_tagger.registry import get_sentence_transformer
 from coreason_tagger.schema import EntityCandidate, ExtractionStrategy, LinkedEntity
+from coreason_tagger.utils.circuit_breaker import CircuitBreaker, CircuitOpenError
 
 
 class VectorLinker(BaseLinker):
@@ -51,6 +53,7 @@ class VectorLinker(BaseLinker):
         self.model_name = model_name or settings.LINKER_MODEL_NAME
         self.window_size = window_size or settings.LINKER_WINDOW_SIZE
         self.candidate_top_k = candidate_top_k or settings.LINKER_CANDIDATE_TOP_K
+        self.circuit_breaker = CircuitBreaker()
 
         # Model is loaded lazily via registry
         self.model: Optional[SentenceTransformer] = None
@@ -74,10 +77,22 @@ class VectorLinker(BaseLinker):
     async def _get_candidates_impl(self, text: str) -> List[Dict[str, Any]]:
         """
         Implementation of candidate generation using Codex with caching.
+        Wraps the external call in the Circuit Breaker.
         """
         # Step 1: Candidate Generation (using Codex's search)
-        candidates: List[Dict[str, Any]] = await self.codex_client.search(text, top_k=self.candidate_top_k)
-        return candidates
+        # Wrap the search call in the circuit breaker
+        try:
+            candidates: List[Dict[str, Any]] = await self.circuit_breaker.call(
+                self.codex_client.search, text, top_k=self.candidate_top_k
+            )
+            return candidates
+        except CircuitOpenError:
+            logger.warning("Circuit Breaker is OPEN. Skipping candidate generation (Offline Mode).")
+            raise  # Re-raise to be handled by caller if needed, or handle here
+        except Exception:
+            # Other exceptions are already logged/handled by circuit breaker record failure logic
+            # but we might want to re-raise them or return empty list
+            raise
 
     async def _rerank(self, query_text: str, candidates: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
@@ -147,7 +162,14 @@ class VectorLinker(BaseLinker):
             return self._build_linked_entity(entity, strategy)
 
         # Step 1: Get Candidates (Cached)
-        candidates = await self._get_candidates_impl(text)
+        try:
+            candidates = await self._get_candidates_impl(text)
+        except CircuitOpenError:
+            # Offline Mode: Return raw entity without linking
+            return self._build_linked_entity(entity, strategy)
+        except Exception as e:
+            logger.error(f"Failed to retrieve candidates for '{text}': {e}")
+            return self._build_linked_entity(entity, strategy)
 
         if not candidates:
             return self._build_linked_entity(entity, strategy)
