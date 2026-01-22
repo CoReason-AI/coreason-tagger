@@ -46,7 +46,7 @@ def create_candidate(text: str) -> EntityCandidate:
 
 
 @pytest.mark.asyncio
-async def test_linker_circuit_breaker_activates(linker: VectorLinker, mock_codex: AsyncMock):
+async def test_linker_circuit_breaker_activates(linker: VectorLinker, mock_codex: AsyncMock) -> None:
     """Test that linker activates circuit breaker after failures and enters Offline Mode."""
     candidate = create_candidate("fever")
     strategy = ExtractionStrategy.SPEED_GLINER
@@ -79,7 +79,7 @@ async def test_linker_circuit_breaker_activates(linker: VectorLinker, mock_codex
 
 
 @pytest.mark.asyncio
-async def test_linker_circuit_breaker_recovery(linker: VectorLinker, mock_codex: AsyncMock):
+async def test_linker_circuit_breaker_recovery(linker: VectorLinker, mock_codex: AsyncMock) -> None:
     """Test that linker recovers from Offline Mode."""
     candidate = create_candidate("fever")
     strategy = ExtractionStrategy.SPEED_GLINER

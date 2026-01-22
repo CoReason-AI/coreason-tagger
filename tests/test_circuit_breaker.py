@@ -20,23 +20,23 @@ from coreason_tagger.utils.circuit_breaker import (
 
 
 @pytest.fixture
-def circuit_breaker():
+def circuit_breaker() -> CircuitBreaker:
     # Reset singleton instance for each test
     CircuitBreaker._instance = None
     cb = CircuitBreaker(max_failures=5, window_seconds=10, reset_timeout_seconds=30)
     return cb
 
 
-async def successful_func():
+async def successful_func() -> str:
     return "success"
 
 
-async def failing_func():
+async def failing_func() -> None:
     raise ValueError("Failed")
 
 
 @pytest.mark.asyncio
-async def test_circuit_breaker_happy_path(circuit_breaker):
+async def test_circuit_breaker_happy_path(circuit_breaker: CircuitBreaker) -> None:
     """Test normal operation (CLOSED state)."""
     assert circuit_breaker.state == CircuitState.CLOSED
     result = await circuit_breaker.call(successful_func)
@@ -45,7 +45,7 @@ async def test_circuit_breaker_happy_path(circuit_breaker):
 
 
 @pytest.mark.asyncio
-async def test_circuit_breaker_opens_after_failures(circuit_breaker):
+async def test_circuit_breaker_opens_after_failures(circuit_breaker: CircuitBreaker) -> None:
     """Test that circuit opens after threshold failures."""
     # 4 Failures (Threshold is 5)
     for _ in range(4):
@@ -61,7 +61,7 @@ async def test_circuit_breaker_opens_after_failures(circuit_breaker):
 
 
 @pytest.mark.asyncio
-async def test_circuit_breaker_rejects_when_open(circuit_breaker):
+async def test_circuit_breaker_rejects_when_open(circuit_breaker: CircuitBreaker) -> None:
     """Test that calls are rejected immediately when OPEN."""
     # Force OPEN state
     circuit_breaker._state = CircuitState.OPEN
@@ -74,7 +74,7 @@ async def test_circuit_breaker_rejects_when_open(circuit_breaker):
 
 
 @pytest.mark.asyncio
-async def test_circuit_breaker_recovery(circuit_breaker):
+async def test_circuit_breaker_recovery(circuit_breaker: CircuitBreaker) -> None:
     """Test transition from OPEN -> HALF_OPEN -> CLOSED."""
     # Force OPEN state
     circuit_breaker._state = CircuitState.OPEN
@@ -92,7 +92,7 @@ async def test_circuit_breaker_recovery(circuit_breaker):
 
 
 @pytest.mark.asyncio
-async def test_circuit_breaker_relapse(circuit_breaker):
+async def test_circuit_breaker_relapse(circuit_breaker: CircuitBreaker) -> None:
     """Test transition from OPEN -> HALF_OPEN -> OPEN (on failure)."""
     # Force OPEN state
     circuit_breaker._state = CircuitState.OPEN
@@ -114,7 +114,7 @@ async def test_circuit_breaker_relapse(circuit_breaker):
 
 
 @pytest.mark.asyncio
-async def test_sliding_window_expiration(circuit_breaker):
+async def test_sliding_window_expiration(circuit_breaker: CircuitBreaker) -> None:
     """Test that old failures expire and don't contribute to threshold."""
     # 4 Failures at t=100
     with patch("time.monotonic", return_value=100.0):
@@ -142,7 +142,7 @@ async def test_sliding_window_expiration(circuit_breaker):
 
 
 @pytest.mark.asyncio
-async def test_singleton_behavior():
+async def test_singleton_behavior() -> None:
     """Test that multiple instantiations return the same object."""
     CircuitBreaker._instance = None
     cb1 = CircuitBreaker()
