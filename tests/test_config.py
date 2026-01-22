@@ -24,6 +24,8 @@ def test_default_settings() -> None:
     assert settings.LINKER_CANDIDATE_TOP_K == 10
     assert settings.LINKER_WINDOW_SIZE == 50
     assert settings.LOG_LEVEL == "INFO"
+    assert settings.CODEX_API_URL == "http://localhost:8000"
+    assert settings.CODEX_API_KEY is None
 
 
 def test_env_override() -> None:
@@ -33,6 +35,8 @@ def test_env_override() -> None:
         "LINKER_MODEL_NAME": "test-linker-model",
         "LOG_LEVEL": "DEBUG",
         "LINKER_CANDIDATE_TOP_K": "20",
+        "CODEX_API_URL": "http://production:8080",
+        "CODEX_API_KEY": "secret-key",
     }
     with patch.dict(os.environ, env_vars):
         # We must re-instantiate Settings to pick up new env vars
@@ -42,6 +46,8 @@ def test_env_override() -> None:
         assert settings.LINKER_MODEL_NAME == "test-linker-model"
         assert settings.LOG_LEVEL == "DEBUG"
         assert settings.LINKER_CANDIDATE_TOP_K == 20
+        assert settings.CODEX_API_URL == "http://production:8080"
+        assert settings.CODEX_API_KEY == "secret-key"
 
 
 @patch("coreason_tagger.ner.GLiNER.from_pretrained")
