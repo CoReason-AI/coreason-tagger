@@ -11,7 +11,7 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from coreason_tagger.ner import ExtractorFactory, GLiNERExtractor, NuNERExtractor
+from coreason_tagger.ner import ExtractorFactory, GLiNERExtractor, NuNERExtractor, ReasoningExtractor
 from coreason_tagger.schema import ExtractionStrategy
 from coreason_tagger.tagger import CoreasonTagger
 
@@ -28,9 +28,9 @@ def test_extractor_factory_strategies() -> None:
     extractor_precision = factory.get_extractor(ExtractionStrategy.PRECISION_NUNER)
     assert isinstance(extractor_precision, NuNERExtractor)
 
-    # Test Fallback (Reasoning) -> currently defaults to GLiNER
+    # Test Reasoning
     extractor_reasoning = factory.get_extractor(ExtractionStrategy.REASONING_LLM)
-    assert isinstance(extractor_reasoning, GLiNERExtractor)
+    assert isinstance(extractor_reasoning, ReasoningExtractor)
 
 
 def test_extractor_factory_caching() -> None:
