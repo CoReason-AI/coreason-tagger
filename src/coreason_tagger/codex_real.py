@@ -10,13 +10,14 @@
 
 from typing import Any, Dict, List
 
-import requests
+import httpx
 
 
 class RealCoreasonCodex:
     """
     Real implementation of the Coreason Codex client.
     Connects to a real database service (e.g. Postgres/Vector).
+    Uses httpx for asynchronous HTTP requests.
     """
 
     def __init__(self, api_url: str) -> None:
@@ -26,14 +27,20 @@ class RealCoreasonCodex:
         """
         Search for concepts in the real database.
         """
-        # Example: Connect to a real backend API or Database
-        # Note: requests is blocking, in production use httpx or run in executor
-        response = requests.get(f"{self.api_url}/search", params={"q": query, "top_k": str(top_k)}, timeout=5)
-        return response.json()  # type: ignore
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{self.api_url}/search",
+                params={"q": query, "top_k": str(top_k)},
+                timeout=5.0,
+            )
+            response.raise_for_status()
+            return response.json()  # type: ignore
 
     async def get_concept(self, concept_id: str) -> Dict[str, Any]:
         """
         Retrieve a specific concept by ID.
         """
-        response = requests.get(f"{self.api_url}/concept/{concept_id}", timeout=5)
-        return response.json()  # type: ignore
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{self.api_url}/concept/{concept_id}", timeout=5.0)
+            response.raise_for_status()
+            return response.json()  # type: ignore

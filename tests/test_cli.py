@@ -97,7 +97,11 @@ def test_get_tagger_factory() -> None:
     Test the factory function creates a valid CoreasonTagger instance.
     We mock the heavy dependencies to make this unit test fast.
     """
-    with patch("coreason_tagger.main.GLiNERExtractor"), patch("coreason_tagger.main.VectorLinker"):
+    with (
+        patch("coreason_tagger.main.GLiNERExtractor"),
+        patch("coreason_tagger.main.VectorLinker"),
+        patch("coreason_tagger.main.RealCoreasonCodex"),
+    ):
         tagger = get_tagger()
         assert isinstance(tagger, CoreasonTagger)
         assert tagger.ner_or_factory is not None
