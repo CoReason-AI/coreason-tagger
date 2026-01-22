@@ -289,9 +289,6 @@ class ReasoningExtractor(BaseExtractor):
         sorted_candidates = sorted(candidates, key=lambda c: c.start)
         clustered: List[EntityCandidate] = []
 
-        if not sorted_candidates:
-            return []
-
         current_group = [sorted_candidates[0]]
 
         for i in range(1, len(sorted_candidates)):
