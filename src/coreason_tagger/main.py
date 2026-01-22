@@ -10,18 +10,24 @@
 
 import asyncio
 import json
+import os
 from typing import List, Optional
 
 import typer
+from transformers import logging as transformers_logging
 from typing_extensions import Annotated
 
 from coreason_tagger import __version__
 from coreason_tagger.assertion_detector import RegexBasedAssertionDetector
-from coreason_tagger.codex_mock import MockCoreasonCodex
+from coreason_tagger.codex_real import RealCoreasonCodex
+from coreason_tagger.config import settings
 from coreason_tagger.linker import VectorLinker
 from coreason_tagger.ner import GLiNERExtractor
 from coreason_tagger.tagger import CoreasonTagger
 from coreason_tagger.utils.logger import logger, setup_logger
+
+transformers_logging.set_verbosity_error()  # type: ignore
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 app = typer.Typer(help="CoReason Tagger CLI")
 
@@ -34,10 +40,7 @@ def get_tagger() -> CoreasonTagger:
     logger.info("Initializing Tagger Pipeline...")
     ner = GLiNERExtractor()
     assertion = RegexBasedAssertionDetector()
-    # TODO: Replace MockCoreasonCodex with real client when available
-    # from coreason_tagger.codex_real import RealCoreasonCodex
-    # codex_client = RealCoreasonCodex(api_url="http://localhost:8000")
-    codex_client = MockCoreasonCodex()
+    codex_client = RealCoreasonCodex(api_url=settings.CODEX_API_URL)
     linker = VectorLinker(codex_client=codex_client)
     return CoreasonTagger(ner=ner, assertion=assertion, linker=linker)
 
