@@ -9,15 +9,17 @@
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
 import asyncio
+import json
 from typing import Any, Dict, List, Optional
 
+import redis.asyncio as redis
 from async_lru import alru_cache
 from loguru import logger
 from sentence_transformers import SentenceTransformer, util
 
 from coreason_tagger.config import settings
 from coreason_tagger.interfaces import BaseLinker, CodexClient
-from coreason_tagger.registry import get_sentence_transformer
+from coreason_tagger.registry import get_redis_client, get_sentence_transformer
 from coreason_tagger.schema import EntityCandidate, ExtractionStrategy, LinkedEntity
 from coreason_tagger.utils.circuit_breaker import CircuitBreaker, CircuitOpenError
 
@@ -58,14 +60,8 @@ class VectorLinker(BaseLinker):
         # Model is loaded lazily via registry
         self.model: Optional[SentenceTransformer] = None
 
-        # Replace manual cache with alru_cache wrapper on the method
-        # To make it per-instance, we could use a wrapper, but alru_cache on method is fine
-        # if we accept shared cache or if the method key includes self (which it does by default).
-        # alru_cache uses the arguments as key. If 'self' is in arguments, it keys by instance.
-        # But 'self' must be hashable. VectorLinker instance is hashable (default ID).
-        # So @alru_cache on method works per instance distinctness if instances are distinct.
-        # However, we want to optimize.
-        # Let's wrap the implementation method.
+        # Redis is loaded lazily via registry if URL is set
+        self.redis_client: Optional[redis.Redis[Any]] = None
 
     async def _get_model(self) -> SentenceTransformer:
         """Lazy load model via registry."""
@@ -73,18 +69,65 @@ class VectorLinker(BaseLinker):
             self.model = await get_sentence_transformer(self.model_name)
         return self.model
 
+    async def _get_redis(self) -> Optional[redis.Redis[Any]]:
+        """Lazy load redis client via registry."""
+        if self.redis_client is None and settings.REDIS_URL:
+            self.redis_client = await get_redis_client(settings.REDIS_URL)
+        return self.redis_client
+
+    async def _check_redis_cache(self, text: str) -> Optional[List[Dict[str, Any]]]:
+        """Check L2 Redis cache."""
+        try:
+            client = await self._get_redis()
+            if not client:
+                return None
+
+            key = f"linker:candidates:{text}"
+            data = await client.get(key)
+            if data:
+                return json.loads(data)  # type: ignore
+        except Exception as e:
+            logger.warning(f"Redis L2 read failed for '{text}': {e}")
+        return None
+
+    async def _write_redis_cache(self, text: str, candidates: List[Dict[str, Any]]) -> None:
+        """Write to L2 Redis cache."""
+        try:
+            client = await self._get_redis()
+            if not client:
+                return
+
+            key = f"linker:candidates:{text}"
+            data = json.dumps(candidates)
+            await client.set(key, data, ex=settings.REDIS_TTL)
+        except Exception as e:
+            logger.warning(f"Redis L2 write failed for '{text}': {e}")
+
     @alru_cache(maxsize=1024)
     async def _get_candidates_impl(self, text: str) -> List[Dict[str, Any]]:
         """
         Implementation of candidate generation using Codex with caching.
-        Wraps the external call in the Circuit Breaker.
+        L1 Cache: alru_cache (Memory)
+        L2 Cache: Redis
+        Fallback: Codex Search (Circuit Breaker protected)
         """
-        # Step 1: Candidate Generation (using Codex's search)
-        # Wrap the search call in the circuit breaker
+
+        # L2 Cache Check (Redis)
+        cached_candidates = await self._check_redis_cache(text)
+        if cached_candidates is not None:
+            return cached_candidates
+
+        # Fetch from Source (Codex)
         try:
             candidates: List[Dict[str, Any]] = await self.circuit_breaker.call(
                 self.codex_client.search, text, top_k=self.candidate_top_k
             )
+
+            # Write back to L2 Cache
+            # (We do this asynchronously but await it to ensure order/consistency, or fire-and-forget?
+            # Awaiting is safer for now to avoid complexity, though slightly slower on miss.)
+            await self._write_redis_cache(text, candidates)
+
             return candidates
         except CircuitOpenError:
             logger.warning("Circuit Breaker is OPEN. Skipping candidate generation (Offline Mode).")

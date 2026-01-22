@@ -9,8 +9,9 @@
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
 import asyncio
-from typing import Any
+from typing import Any, Optional
 
+import redis.asyncio as redis
 from async_lru import alru_cache
 from gliner import GLiNER
 from loguru import logger
@@ -60,3 +61,23 @@ async def get_nuner_pipeline(model_name: str) -> Any:
         ),
     )
     return pipe
+
+
+@alru_cache(maxsize=1)
+async def get_redis_client(redis_url: str) -> Optional[redis.Redis[Any]]:
+    """
+    Get a Redis client instance. Caches the result to ensure singleton behavior per URL.
+    Returns None if redis_url is empty.
+    """
+    if not redis_url:
+        return None
+
+    logger.info(f"Connecting to Redis at {redis_url}")
+    try:
+        client = redis.from_url(redis_url, encoding="utf-8", decode_responses=True)
+        # Verify connection
+        await client.ping()
+        return client
+    except Exception as e:
+        logger.error(f"Failed to connect to Redis: {e}")
+        return None
