@@ -12,7 +12,6 @@ from typing import Any, Generator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from coreason_tagger.linker import VectorLinker
 from coreason_tagger.schema import EntityCandidate, ExtractionStrategy, LinkedEntity
 

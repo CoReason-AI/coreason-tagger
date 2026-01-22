@@ -11,7 +11,6 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from coreason_tagger.ner import ExtractorFactory, GLiNERExtractor, NuNERExtractor
 from coreason_tagger.schema import ExtractionStrategy
 from coreason_tagger.tagger import CoreasonTagger
