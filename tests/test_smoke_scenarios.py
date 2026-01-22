@@ -8,7 +8,7 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from coreason_tagger.assertion_detector import RegexBasedAssertionDetector
@@ -19,7 +19,7 @@ from coreason_tagger.tagger import CoreasonTagger
 
 
 @pytest.fixture
-def tagger_components():
+def tagger_components():  # type: ignore
     """
     Setup tagger components with MOCKED NER but REAL Assertion, Linker, and Codex.
     This ensures we test the Codex data and Linking logic without invoking heavy models.
@@ -35,19 +35,19 @@ def tagger_components():
     # However, VectorLinker uses `get_sentence_transformer` from registry.
     # We can mock that.
 
-    with pytest.patch("coreason_tagger.linker.get_sentence_transformer", new_callable=AsyncMock):
+    with patch("coreason_tagger.linker.get_sentence_transformer", new_callable=AsyncMock):
         # We will mock `VectorLinker._rerank` to just return the first candidate.
         # This is sufficient for verifying that Codex *found* the right candidate.
 
         linker = VectorLinker(codex_client=codex_client)
-        linker._rerank = AsyncMock(side_effect=lambda q, c: c[0] if c else {})  # Just pick top 1
+        linker._rerank = AsyncMock(side_effect=lambda q, c: c[0] if c else {})  # type: ignore # Just pick top 1
 
         tagger = CoreasonTagger(ner=mock_ner, assertion=assertion, linker=linker)
         return tagger, mock_ner
 
 
 @pytest.mark.asyncio
-async def test_smoke_fever_absent(tagger_components):
+async def test_smoke_fever_absent(tagger_components) -> None:  # type: ignore
     """
     Scenario: "Patient denies fever."
     Expected: Entity 'fever', Assertion ABSENT, Concept SNOMED:386661006 (Fever).
@@ -72,7 +72,7 @@ async def test_smoke_fever_absent(tagger_components):
 
 
 @pytest.mark.asyncio
-async def test_smoke_severe_headache_synonym(tagger_components):
+async def test_smoke_severe_headache_synonym(tagger_components) -> None:  # type: ignore
     """
     Scenario: "Patient has a severe headache."
     Expected: Entity 'severe headache', Assertion PRESENT, Concept SNOMED:25064002 (Headache).
@@ -98,7 +98,7 @@ async def test_smoke_severe_headache_synonym(tagger_components):
 
 
 @pytest.mark.asyncio
-async def test_smoke_boston_location(tagger_components):
+async def test_smoke_boston_location(tagger_components) -> None:  # type: ignore
     """
     Scenario: "Patient lives in Boston."
     Expected: Entity 'Boston', Assertion PRESENT, Concept GEO:BOSTON.
