@@ -11,7 +11,6 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
-
 from coreason_tagger.assertion_detector import RegexBasedAssertionDetector
 from coreason_tagger.codex_mock import MockCoreasonCodex
 from coreason_tagger.linker import VectorLinker

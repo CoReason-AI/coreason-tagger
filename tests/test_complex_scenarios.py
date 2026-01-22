@@ -13,7 +13,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import torch
-
 from coreason_tagger.assertion_detector import RegexBasedAssertionDetector
 from coreason_tagger.codex_mock import MockCoreasonCodex
 from coreason_tagger.linker import VectorLinker

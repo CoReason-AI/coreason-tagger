@@ -2,8 +2,6 @@
 # Copyright (c) 2024 CoReason AI
 
 import pytest
-from pydantic import ValidationError
-
 from coreason_tagger.schema import (
     AssertionStatus,
     BatchRequest,
@@ -11,6 +9,7 @@ from coreason_tagger.schema import (
     ExtractionStrategy,
     LinkedEntity,
 )
+from pydantic import ValidationError
 
 
 def test_assertion_status_enum() -> None:
