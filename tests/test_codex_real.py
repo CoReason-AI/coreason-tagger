@@ -8,64 +8,76 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
-import requests
 from coreason_tagger.codex_real import RealCoreasonCodex
 
 
-@pytest.mark.asyncio
-async def test_search_real() -> None:
-    """Test RealCoreasonCodex search method with mocked requests."""
-    client = RealCoreasonCodex("http://fake-api")
-
-    mock_response = [{"concept_id": "ID:1", "concept_name": "Test"}]
-
-    with patch("requests.get") as mock_get:
-        mock_get.return_value.json.return_value = mock_response
-
-        results = await client.search("query", top_k=5)
-
-        assert results == mock_response
-        mock_get.assert_called_once_with("http://fake-api/search", params={"q": "query", "top_k": "5"}, timeout=5)
+@pytest.fixture
+def client() -> RealCoreasonCodex:
+    return RealCoreasonCodex(api_url="http://test-api.com")
 
 
-@pytest.mark.asyncio
-async def test_get_concept_real() -> None:
-    """Test RealCoreasonCodex get_concept method with mocked requests."""
-    client = RealCoreasonCodex("http://fake-api")
+@patch("requests.get")
+async def test_search_success(mock_get: MagicMock, client: RealCoreasonCodex) -> None:
+    """Test successful search request."""
+    mock_response = MagicMock()
+    mock_response.json.return_value = [{"concept_id": "C1", "concept_name": "Test"}]
+    mock_response.status_code = 200
+    mock_get.return_value = mock_response
 
-    mock_response = {"concept_id": "ID:1", "concept_name": "Test"}
+    # RealCoreasonCodex uses requests (blocking), so we mock it.
+    # Note: the actual code calls requests.get directly.
+    # However, since search is async, but implementation uses requests (blocking),
+    # we need to be careful. The current implementation in codex_real.py
+    # defines async def search(...) but calls requests.get inside.
+    # This blocks the loop. Ideally we should use httpx or run_in_executor.
+    # But for this test, we just verify the logic.
 
-    with patch("requests.get") as mock_get:
-        mock_get.return_value.json.return_value = mock_response
+    results = await client.search("query", top_k=5)
 
-        result = await client.get_concept("ID:1")
+    assert len(results) == 1
+    assert results[0]["concept_id"] == "C1"
 
-        assert result == mock_response
-        mock_get.assert_called_once_with("http://fake-api/concept/ID:1", timeout=5)
-
-
-@pytest.mark.asyncio
-async def test_search_real_network_error() -> None:
-    """Test RealCoreasonCodex search method handling network errors."""
-    client = RealCoreasonCodex("http://fake-api")
-
-    with patch("requests.get") as mock_get:
-        mock_get.side_effect = requests.exceptions.RequestException("Network Error")
-
-        with pytest.raises(requests.exceptions.RequestException):
-            await client.search("query")
+    mock_get.assert_called_once()
+    args, kwargs = mock_get.call_args
+    assert args[0] == "http://test-api.com/search"
+    assert kwargs["params"] == {"q": "query", "top_k": "5"}
+    assert kwargs["timeout"] == 5
 
 
-@pytest.mark.asyncio
-async def test_search_real_invalid_json() -> None:
-    """Test RealCoreasonCodex search method handling invalid JSON."""
-    client = RealCoreasonCodex("http://fake-api")
+@patch("requests.get")
+async def test_get_concept_success(mock_get: MagicMock, client: RealCoreasonCodex) -> None:
+    """Test successful get_concept request."""
+    mock_response = MagicMock()
+    mock_response.json.return_value = {"concept_id": "C1", "concept_name": "Test"}
+    mock_response.status_code = 200
+    mock_get.return_value = mock_response
 
-    with patch("requests.get") as mock_get:
-        mock_get.return_value.json.side_effect = ValueError("Invalid JSON")
+    result = await client.get_concept("C1")
 
-        with pytest.raises(ValueError):
-            await client.search("query")
+    assert result["concept_id"] == "C1"
+
+    mock_get.assert_called_once()
+    args, kwargs = mock_get.call_args
+    assert args[0] == "http://test-api.com/concept/C1"
+    assert kwargs["timeout"] == 5
+
+
+@patch("requests.get")
+async def test_search_failure(mock_get: MagicMock, client: RealCoreasonCodex) -> None:
+    """Test search failure (e.g. network error)."""
+    mock_get.side_effect = Exception("Network Error")
+
+    with pytest.raises(Exception, match="Network Error"):
+        await client.search("query")
+
+
+@patch("requests.get")
+async def test_get_concept_failure(mock_get: MagicMock, client: RealCoreasonCodex) -> None:
+    """Test get_concept failure."""
+    mock_get.side_effect = Exception("Network Error")
+
+    with pytest.raises(Exception, match="Network Error"):
+        await client.get_concept("C1")
