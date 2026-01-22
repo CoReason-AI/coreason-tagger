@@ -64,7 +64,9 @@ async def test_linker_circuit_breaker_activates(linker: VectorLinker, mock_codex
     res2 = await linker.resolve(candidate, "context", strategy)
     assert res2.concept_id is None
     # Now state should be OPEN (recorded 2 failures)
-    assert linker.circuit_breaker.state == CircuitState.OPEN
+    # Assign to variable to avoid mypy narrowing from previous assertion
+    state: CircuitState = linker.circuit_breaker.state
+    assert state == CircuitState.OPEN
 
     # 2. Verify Offline Mode (Circuit OPEN)
     # Next call should NOT call mock_codex.search, should fail fast
