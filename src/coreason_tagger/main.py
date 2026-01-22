@@ -35,6 +35,8 @@ def get_tagger() -> CoreasonTagger:
     ner = GLiNERExtractor()
     assertion = RegexBasedAssertionDetector()
     # TODO: Replace MockCoreasonCodex with real client when available
+    # from coreason_tagger.codex_real import RealCoreasonCodex
+    # codex_client = RealCoreasonCodex(api_url="http://localhost:8000")
     codex_client = MockCoreasonCodex()
     linker = VectorLinker(codex_client=codex_client)
     return CoreasonTagger(ner=ner, assertion=assertion, linker=linker)

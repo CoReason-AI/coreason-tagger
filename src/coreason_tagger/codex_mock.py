@@ -39,6 +39,8 @@ class MockCoreasonCodex:
             # Ensure Headache and Migraine are present (User listed them)
             "SNOMED:37796009": {"concept_id": "SNOMED:37796009", "concept_name": "Migraine"},
             "SNOMED:25064002": {"concept_id": "SNOMED:25064002", "concept_name": "Headache"},
+            "SNOMED:386661006": {"concept_id": "SNOMED:386661006", "concept_name": "Fever"},
+            "GEO:BOSTON": {"concept_id": "GEO:BOSTON", "concept_name": "Boston"},
         }
         # Simple synonym map for search simulation
         self.synonyms = {
@@ -52,6 +54,9 @@ class MockCoreasonCodex:
             "shivering": "SNOMED:44077006",
             "head ache": "HP:0002315",  # Used in existing tests
             "headache": "HP:0002315",
+            "severe headache": "SNOMED:25064002",
+            "fever": "SNOMED:386661006",
+            "boston": "GEO:BOSTON",
         }
         # Add HP headache as well to support existing tests while adding SNOMED headache
         self.concepts["HP:0002315"] = {"concept_id": "HP:0002315", "concept_name": "Headache"}
