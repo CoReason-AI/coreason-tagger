@@ -11,6 +11,7 @@
 from unittest.mock import patch
 
 import pytest
+import requests
 from coreason_tagger.codex_real import RealCoreasonCodex
 
 
@@ -44,3 +45,27 @@ async def test_get_concept_real() -> None:
 
         assert result == mock_response
         mock_get.assert_called_once_with("http://fake-api/concept/ID:1", timeout=5)
+
+
+@pytest.mark.asyncio
+async def test_search_real_network_error() -> None:
+    """Test RealCoreasonCodex search method handling network errors."""
+    client = RealCoreasonCodex("http://fake-api")
+
+    with patch("requests.get") as mock_get:
+        mock_get.side_effect = requests.exceptions.RequestException("Network Error")
+
+        with pytest.raises(requests.exceptions.RequestException):
+            await client.search("query")
+
+
+@pytest.mark.asyncio
+async def test_search_real_invalid_json() -> None:
+    """Test RealCoreasonCodex search method handling invalid JSON."""
+    client = RealCoreasonCodex("http://fake-api")
+
+    with patch("requests.get") as mock_get:
+        mock_get.return_value.json.side_effect = ValueError("Invalid JSON")
+
+        with pytest.raises(ValueError):
+            await client.search("query")
