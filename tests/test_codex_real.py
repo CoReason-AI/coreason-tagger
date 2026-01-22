@@ -8,9 +8,9 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
-from unittest.mock import MagicMock, patch
-
+import httpx
 import pytest
+import respx
 from coreason_tagger.codex_real import RealCoreasonCodex
 
 
@@ -19,65 +19,62 @@ def client() -> RealCoreasonCodex:
     return RealCoreasonCodex(api_url="http://test-api.com")
 
 
-@patch("requests.get")
-async def test_search_success(mock_get: MagicMock, client: RealCoreasonCodex) -> None:
-    """Test successful search request."""
-    mock_response = MagicMock()
-    mock_response.json.return_value = [{"concept_id": "C1", "concept_name": "Test"}]
-    mock_response.status_code = 200
-    mock_get.return_value = mock_response
+@pytest.mark.asyncio
+async def test_search_success(client: RealCoreasonCodex) -> None:
+    """Test successful search request using httpx mock (respx)."""
+    with respx.mock(base_url="http://test-api.com") as respx_mock:
+        route = respx_mock.get("/search").respond(status_code=200, json=[{"concept_id": "C1", "concept_name": "Test"}])
 
-    # RealCoreasonCodex uses requests (blocking), so we mock it.
-    # Note: the actual code calls requests.get directly.
-    # However, since search is async, but implementation uses requests (blocking),
-    # we need to be careful. The current implementation in codex_real.py
-    # defines async def search(...) but calls requests.get inside.
-    # This blocks the loop. Ideally we should use httpx or run_in_executor.
-    # But for this test, we just verify the logic.
+        results = await client.search("query", top_k=5)
 
-    results = await client.search("query", top_k=5)
-
-    assert len(results) == 1
-    assert results[0]["concept_id"] == "C1"
-
-    mock_get.assert_called_once()
-    args, kwargs = mock_get.call_args
-    assert args[0] == "http://test-api.com/search"
-    assert kwargs["params"] == {"q": "query", "top_k": "5"}
-    assert kwargs["timeout"] == 5
+        assert len(results) == 1
+        assert results[0]["concept_id"] == "C1"
+        assert route.called
+        assert route.call_count == 1
+        request = route.calls.last.request
+        assert request.url.params["q"] == "query"
+        assert request.url.params["top_k"] == "5"
 
 
-@patch("requests.get")
-async def test_get_concept_success(mock_get: MagicMock, client: RealCoreasonCodex) -> None:
-    """Test successful get_concept request."""
-    mock_response = MagicMock()
-    mock_response.json.return_value = {"concept_id": "C1", "concept_name": "Test"}
-    mock_response.status_code = 200
-    mock_get.return_value = mock_response
+@pytest.mark.asyncio
+async def test_get_concept_success(client: RealCoreasonCodex) -> None:
+    """Test successful get_concept request using httpx mock (respx)."""
+    with respx.mock(base_url="http://test-api.com") as respx_mock:
+        route = respx_mock.get("/concept/C1").respond(
+            status_code=200, json={"concept_id": "C1", "concept_name": "Test"}
+        )
 
-    result = await client.get_concept("C1")
+        result = await client.get_concept("C1")
 
-    assert result["concept_id"] == "C1"
-
-    mock_get.assert_called_once()
-    args, kwargs = mock_get.call_args
-    assert args[0] == "http://test-api.com/concept/C1"
-    assert kwargs["timeout"] == 5
+        assert result["concept_id"] == "C1"
+        assert route.called
 
 
-@patch("requests.get")
-async def test_search_failure(mock_get: MagicMock, client: RealCoreasonCodex) -> None:
-    """Test search failure (e.g. network error)."""
-    mock_get.side_effect = Exception("Network Error")
+@pytest.mark.asyncio
+async def test_search_failure(client: RealCoreasonCodex) -> None:
+    """Test search failure (e.g. network error) using httpx mock."""
+    with respx.mock(base_url="http://test-api.com") as respx_mock:
+        respx_mock.get("/search").mock(side_effect=httpx.NetworkError("Network Error"))
 
-    with pytest.raises(Exception, match="Network Error"):
-        await client.search("query")
+        with pytest.raises(httpx.NetworkError):
+            await client.search("query")
 
 
-@patch("requests.get")
-async def test_get_concept_failure(mock_get: MagicMock, client: RealCoreasonCodex) -> None:
-    """Test get_concept failure."""
-    mock_get.side_effect = Exception("Network Error")
+@pytest.mark.asyncio
+async def test_get_concept_failure(client: RealCoreasonCodex) -> None:
+    """Test get_concept failure using httpx mock."""
+    with respx.mock(base_url="http://test-api.com") as respx_mock:
+        respx_mock.get("/concept/C1").mock(side_effect=httpx.NetworkError("Network Error"))
 
-    with pytest.raises(Exception, match="Network Error"):
-        await client.get_concept("C1")
+        with pytest.raises(httpx.NetworkError):
+            await client.get_concept("C1")
+
+
+@pytest.mark.asyncio
+async def test_search_http_error(client: RealCoreasonCodex) -> None:
+    """Test HTTP error status (e.g., 500) raises exception."""
+    with respx.mock(base_url="http://test-api.com") as respx_mock:
+        respx_mock.get("/search").respond(status_code=500)
+
+        with pytest.raises(httpx.HTTPStatusError):
+            await client.search("query")
