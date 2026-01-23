@@ -84,9 +84,9 @@ class CoreasonTagger:
         linked_entity = await self.linker.resolve(candidate, text, strategy)
         logger.debug(f"Linking for '{candidate.text}' took {(time.monotonic() - start_time) * 1000:.2f}ms")
 
-        # If linking fails (concept_id is None), we skip this entity
+        # If linking fails (concept_id is None), we log a warning but still return the entity
         if not linked_entity.concept_id:
-            return None
+            logger.warning(f"Returning unlinked entity: {linked_entity.text}")
 
         # Update assertion status (Linker returns default PRESENT)
         linked_entity.assertion = assertion_status

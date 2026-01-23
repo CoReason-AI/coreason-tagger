@@ -119,13 +119,13 @@ async def test_tag_no_entities_found(tagger: CoreasonTagger, mock_ner: AsyncMock
 
 
 @pytest.mark.asyncio
-async def test_tag_linking_failure(
+async def test_tag_linking_offline_mode(
     tagger: CoreasonTagger,
     mock_ner: AsyncMock,
     mock_assertion: AsyncMock,
     mock_linker: AsyncMock,
 ) -> None:
-    """Test that entities are dropped if linking fails (returns entity with no ID)."""
+    """Test that entities are preserved even if linking fails (Offline Mode support)."""
     text = "Unknown thing."
     candidate = EntityCandidate(text="thing", label="Unknown", start=8, end=13, confidence=0.5, source_model="mock")
     mock_ner.extract.return_value = [candidate]
@@ -139,7 +139,10 @@ async def test_tag_linking_failure(
     mock_linker.resolve.return_value = linked_entity
 
     results = await tagger.tag(text, ["Unknown"])
-    assert results == []
+    assert len(results) == 1
+    assert results[0].text == "thing"
+    assert results[0].concept_id is None
+    assert results[0].assertion == AssertionStatus.PRESENT
 
 
 @pytest.mark.asyncio
