@@ -27,9 +27,8 @@ async def get_gliner_model(model_name: str) -> GLiNER:
     Load the GLiNER model. Caches the result to ensure singleton behavior per model name.
     """
     logger.info(f"Loading GLiNER model: {model_name}")
-    loop = asyncio.get_running_loop()
     # GLiNER.from_pretrained can trigger downloads, so run in executor
-    model = await loop.run_in_executor(None, GLiNER.from_pretrained, model_name)
+    model = await asyncio.to_thread(GLiNER.from_pretrained, model_name)
     return model
 
 
@@ -39,8 +38,7 @@ async def get_sentence_transformer(model_name: str) -> SentenceTransformer:
     Load the SentenceTransformer model. Caches the result to ensure singleton behavior per model name.
     """
     logger.info(f"Loading SentenceTransformer model: {model_name}")
-    loop = asyncio.get_running_loop()
-    model = await loop.run_in_executor(None, SentenceTransformer, model_name)
+    model = await asyncio.to_thread(SentenceTransformer, model_name)
     return model
 
 
@@ -51,16 +49,13 @@ async def get_nuner_pipeline(model_name: str) -> Any:
     Caches the result to ensure singleton behavior per model name.
     """
     logger.info(f"Loading NuNER pipeline: {model_name}")
-    loop = asyncio.get_running_loop()
     # transformers.pipeline can trigger downloads, so run in executor
-    pipe = await loop.run_in_executor(
-        None,
-        lambda: pipeline(
-            "token-classification",
-            model=model_name,
-            aggregation_strategy="simple",
-            device_map="auto",
-        ),
+    pipe = await asyncio.to_thread(
+        pipeline,
+        "token-classification",
+        model=model_name,
+        aggregation_strategy="simple",
+        device_map="auto",
     )
     return pipe
 
@@ -72,15 +67,12 @@ async def get_assertion_pipeline(model_name: str) -> Any:
     Caches the result to ensure singleton behavior per model name.
     """
     logger.info(f"Loading Assertion pipeline: {model_name}")
-    loop = asyncio.get_running_loop()
     # transformers.pipeline can trigger downloads, so run in executor
-    pipe = await loop.run_in_executor(
-        None,
-        lambda: pipeline(
-            "text-classification",
-            model=model_name,
-            device_map="auto",
-        ),
+    pipe = await asyncio.to_thread(
+        pipeline,
+        "text-classification",
+        model=model_name,
+        device_map="auto",
     )
     return pipe
 

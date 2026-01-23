@@ -8,9 +8,8 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
-import asyncio
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Dict, List, Protocol, TypeVar
+from typing import Any, Dict, List, Protocol, TypeVar
 
 from coreason_tagger.schema import (
     AssertionStatus,
@@ -82,21 +81,6 @@ class BaseExtractor(ABC):
         """
         if not 0.0 <= threshold <= 1.0:
             raise ValueError(f"Threshold must be between 0.0 and 1.0, got {threshold}")
-
-    async def run_in_executor(self, func: Callable[..., T], *args: Any, **kwargs: Any) -> T:
-        """
-        Run a blocking function in the default loop executor.
-
-        Args:
-            func: The blocking function to run.
-            *args: Arguments to pass to the function.
-            **kwargs: Keyword arguments to pass to the function.
-
-        Returns:
-            The result of the function call.
-        """
-        loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, lambda: func(*args, **kwargs))
 
     @abstractmethod
     async def extract(self, text: str, labels: List[str], threshold: float = 0.5) -> List[EntityCandidate]:

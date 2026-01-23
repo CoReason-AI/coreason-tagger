@@ -93,6 +93,33 @@ class CoreasonTagger:
 
         return linked_entity
 
+    async def _process_candidates(
+        self,
+        text: str,
+        candidates: list[EntityCandidate],
+        strategy: ExtractionStrategy,
+    ) -> list[LinkedEntity]:
+        """
+        Helper to process a list of candidates concurrently: contextualize and link.
+
+        Args:
+            text: The full context text.
+            candidates: The list of extracted candidates.
+            strategy: The extraction strategy used.
+
+        Returns:
+            list[LinkedEntity]: The list of fully processed entities.
+        """
+        if not candidates:
+            return []
+
+        # Process candidates concurrently
+        tasks = [self._process_candidate(text, candidate, strategy) for candidate in candidates]
+        results = await asyncio.gather(*tasks)
+
+        # Filter out None results
+        return [entity for entity in results if entity is not None]
+
     async def tag(
         self,
         text: str,
@@ -123,14 +150,8 @@ class CoreasonTagger:
         candidates = await extractor.extract(text, labels)
         logger.info(f"Extraction took {(time.monotonic() - start_time) * 1000:.2f}ms")
 
-        # Process candidates concurrently
-        tasks = [self._process_candidate(text, candidate, strategy) for candidate in candidates]
-        results = await asyncio.gather(*tasks)
-
-        # Filter out None results
-        linked_entities = [entity for entity in results if entity is not None]
-
-        return linked_entities
+        # 3. Process Candidates
+        return await self._process_candidates(text, candidates, strategy)
 
     async def tag_batch(
         self,
@@ -163,16 +184,11 @@ class CoreasonTagger:
         batch_candidates = await extractor.extract_batch(texts, labels)
         logger.info(f"Batch Extraction took {(time.monotonic() - start_time) * 1000:.2f}ms")
 
-        batch_results: list[list[LinkedEntity]] = []
+        # 3. Process Each Text's Candidates
+        tasks = [
+            self._process_candidates(text, candidates, strategy)
+            for text, candidates in zip(texts, batch_candidates, strict=True)
+        ]
+        batch_results = await asyncio.gather(*tasks)
 
-        # Process each text's candidates
-        for text, candidates in zip(texts, batch_candidates, strict=True):
-            # Process candidates for this text concurrently
-            tasks = [self._process_candidate(text, candidate, strategy) for candidate in candidates]
-            results = await asyncio.gather(*tasks)
-
-            # Filter out None results
-            linked_entities = [entity for entity in results if entity is not None]
-            batch_results.append(linked_entities)
-
-        return batch_results
+        return list(batch_results)

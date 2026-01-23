@@ -90,7 +90,7 @@ class GLiNERExtractor(BaseExtractor):
         # GLiNER returns a list of dicts:
         # [{'start': 0, 'end': 5, 'text': '...', 'label': '...', 'score': 0.95}, ...]
         assert self.model is not None
-        raw_entities = await self.run_in_executor(self.model.predict_entities, text, labels, threshold=threshold)
+        raw_entities = await asyncio.to_thread(self.model.predict_entities, text, labels, threshold=threshold)
 
         return [self._build_candidate(entity) for entity in raw_entities]
 
@@ -120,7 +120,7 @@ class GLiNERExtractor(BaseExtractor):
         # Use batch_predict_entities if available.
         # batch_predict_entities returns a list of lists of dicts.
         assert self.model is not None
-        batch_raw_entities = await self.run_in_executor(
+        batch_raw_entities = await asyncio.to_thread(
             self.model.batch_predict_entities, texts, labels, threshold=threshold
         )
 
@@ -195,7 +195,7 @@ class NuNERExtractor(BaseExtractor):
             await self.load_model()
 
         # Pipeline call
-        raw_entities = await self.run_in_executor(self.model, text)
+        raw_entities = await asyncio.to_thread(self.model, text)
 
         candidates = []
         for entity in raw_entities:
@@ -228,7 +228,7 @@ class NuNERExtractor(BaseExtractor):
 
         # Pipeline call with batch_size (defaulting to something reasonable or rely on auto)
         # transformers pipeline handles lists
-        batch_raw_entities = await self.run_in_executor(self.model, texts)
+        batch_raw_entities = await asyncio.to_thread(self.model, texts)
 
         batch_extracted_candidates: list[list[EntityCandidate]] = []
 
