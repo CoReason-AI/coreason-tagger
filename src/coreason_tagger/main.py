@@ -22,7 +22,8 @@ from coreason_tagger.assertion_detector import RegexBasedAssertionDetector
 from coreason_tagger.codex_real import RealCoreasonCodex
 from coreason_tagger.config import settings
 from coreason_tagger.linker import VectorLinker
-from coreason_tagger.ner import GLiNERExtractor
+from coreason_tagger.ner import ExtractorFactory
+from coreason_tagger.schema import ExtractionStrategy
 from coreason_tagger.tagger import CoreasonTagger
 from coreason_tagger.utils.logger import logger, setup_logger
 
@@ -38,7 +39,7 @@ def get_tagger() -> CoreasonTagger:
     In a real app, this might rely on Dependency Injection containers.
     """
     logger.info("Initializing Tagger Pipeline...")
-    ner = GLiNERExtractor()
+    ner = ExtractorFactory()
     assertion = RegexBasedAssertionDetector()
     codex_client = RealCoreasonCodex(api_url=settings.CODEX_API_URL)
     linker = VectorLinker(codex_client=codex_client)
@@ -51,11 +52,11 @@ def version() -> None:
     typer.echo(f"coreason-tagger version: {__version__}")
 
 
-async def _tag_async(text: str, labels: List[str]) -> None:
+async def _tag_async(text: str, labels: List[str], strategy: ExtractionStrategy) -> None:
     """Async helper for the tag command."""
     tagger = get_tagger()
     try:
-        results = await tagger.tag(text, labels)
+        results = await tagger.tag(text, labels, strategy=strategy)
         # Convert Pydantic models to list of dicts
         output = [entity.model_dump() for entity in results]
         typer.echo(json.dumps(output, indent=2))
@@ -69,6 +70,9 @@ async def _tag_async(text: str, labels: List[str]) -> None:
 def tag(
     text: str,
     labels: Annotated[Optional[List[str]], typer.Option("--label", "-l", help="Entity labels to extract")] = None,
+    strategy: Annotated[
+        ExtractionStrategy, typer.Option("--strategy", "-s", help="Extraction strategy to use")
+    ] = ExtractionStrategy.SPEED_GLINER,
 ) -> None:
     """
     Tag a single string of text and output JSON.
@@ -77,7 +81,7 @@ def tag(
         # Default labels if none provided
         labels = ["Symptom", "Drug", "Condition"]
 
-    asyncio.run(_tag_async(text, labels))
+    asyncio.run(_tag_async(text, labels, strategy))
 
 
 if __name__ == "__main__":  # pragma: no cover

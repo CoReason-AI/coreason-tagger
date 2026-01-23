@@ -76,7 +76,23 @@ def test_tag_command_custom_labels(mock_get_tagger: MagicMock) -> None:
     mock_tagger_instance.tag.assert_called_once()
     # Check that labels were passed correctly
     call_args = mock_tagger_instance.tag.call_args
+    # call_args[0] is positional args (text, labels)
+    # call_args[1] is kwargs (strategy=...)
     assert set(call_args[0][1]) == {"Custom1", "Custom2"}
+
+
+@patch("coreason_tagger.main.get_tagger")
+def test_tag_command_with_strategy(mock_get_tagger: MagicMock) -> None:
+    """Test the tag command with explicit strategy."""
+    mock_tagger_instance = AsyncMock(spec=CoreasonTagger)
+    mock_get_tagger.return_value = mock_tagger_instance
+    mock_tagger_instance.tag.return_value = []
+
+    # Use short flag
+    result = runner.invoke(app, ["tag", "Text", "-s", "PRECISION_NUNER"])
+    assert result.exit_code == 0
+    mock_tagger_instance.tag.assert_called_once()
+    assert mock_tagger_instance.tag.call_args[1]["strategy"] == ExtractionStrategy.PRECISION_NUNER
 
 
 @patch("coreason_tagger.main.get_tagger")
@@ -98,7 +114,7 @@ def test_get_tagger_factory() -> None:
     We mock the heavy dependencies to make this unit test fast.
     """
     with (
-        patch("coreason_tagger.main.GLiNERExtractor"),
+        patch("coreason_tagger.main.ExtractorFactory"),
         patch("coreason_tagger.main.VectorLinker"),
         patch("coreason_tagger.main.RealCoreasonCodex"),
     ):
