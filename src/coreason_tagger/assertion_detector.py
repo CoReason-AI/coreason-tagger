@@ -8,10 +8,13 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
+import asyncio
 import re
-from typing import List
+from typing import Any, List, Optional
 
+from coreason_tagger.config import settings
 from coreason_tagger.interfaces import BaseAssertionDetector
+from coreason_tagger.registry import get_assertion_pipeline
 from coreason_tagger.schema import AssertionStatus
 
 
@@ -149,3 +152,60 @@ class RegexBasedAssertionDetector(BaseAssertionDetector):
 
         # Default
         return AssertionStatus.PRESENT
+
+
+class DistilBERTAssertionDetector(BaseAssertionDetector):
+    """
+    Assertion detector using a DistilBERT model.
+    """
+
+    def __init__(self, model_name: Optional[str] = None) -> None:
+        self.model_name = model_name or settings.ASSERTION_MODEL_NAME
+        self.model: Any = None
+        # Default mapping for common assertion models
+        self.label_map = {
+            "present": AssertionStatus.PRESENT,
+            "absent": AssertionStatus.ABSENT,
+            "possible": AssertionStatus.POSSIBLE,
+            "conditional": AssertionStatus.CONDITIONAL,
+            "hypothetical": AssertionStatus.POSSIBLE,
+            "associated_with_someone_else": AssertionStatus.FAMILY,
+            "family": AssertionStatus.FAMILY,
+            "history": AssertionStatus.HISTORY,
+            # Fallbacks for generic models
+            "label_0": AssertionStatus.ABSENT,
+            "label_1": AssertionStatus.PRESENT,
+        }
+
+    async def load_model(self) -> None:
+        """Lazy load the model pipeline."""
+        if self.model is not None:
+            return
+        self.model = await get_assertion_pipeline(self.model_name)
+
+    async def detect(self, text: str, span_text: str, span_start: int, span_end: int) -> AssertionStatus:
+        """
+        Detect assertion status using the loaded model.
+        """
+        if self.model is None:
+            await self.load_model()
+
+        # Mark the entity with special tokens
+        # Note: If the model uses specific tokens (like [entity]), they should be preserved.
+        pre = text[:span_start]
+        post = text[span_end:]
+        formatted_text = f"{pre}[entity] {span_text} [/entity]{post}"
+
+        loop = asyncio.get_running_loop()
+        # Run inference in executor to avoid blocking
+        # pipeline returns a list of dicts: [{'label': '...', 'score': ...}]
+        result = await loop.run_in_executor(None, lambda: self.model(formatted_text, truncation=True))
+
+        if not result:
+            return AssertionStatus.PRESENT
+
+        # Handle output format (list of dicts or dict)
+        top_result = result[0] if isinstance(result, list) else result
+        label = top_result.get("label", "").lower()
+
+        return self.label_map.get(label, AssertionStatus.PRESENT)

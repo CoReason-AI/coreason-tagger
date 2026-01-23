@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     NER_MODEL_NAME: str = "urchade/gliner_small-v2.1"
     NUNER_MODEL_NAME: str = "numind/NuNER-Zero"
 
+    # Assertion Configuration
+    ASSERTION_MODEL_NAME: str = "distilbert-base-uncased"
+
     # LLM Configuration
     LLM_MODEL_NAME: str = "gpt-4o-mini"
     LLM_API_KEY: str | None = None

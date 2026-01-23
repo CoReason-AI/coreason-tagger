@@ -8,10 +8,10 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from coreason_tagger.registry import get_redis_client
+from coreason_tagger.registry import get_assertion_pipeline, get_redis_client
 
 
 @pytest.mark.asyncio
@@ -75,3 +75,24 @@ async def test_get_redis_client_caching() -> None:
         assert mock_from_url.call_count == 1
 
     get_redis_client.cache_clear()
+
+
+@pytest.mark.asyncio
+async def test_get_assertion_pipeline() -> None:
+    mock_pipeline = MagicMock()
+
+    # We mock coreason_tagger.registry.pipeline instead of transformers.pipeline
+    # because that's where it's imported (if imported as `from transformers import pipeline`)
+    # Wait, in registry.py it is `from transformers import pipeline`.
+    # So we should patch "coreason_tagger.registry.pipeline"
+    with patch("coreason_tagger.registry.pipeline", return_value=mock_pipeline) as mock_hf_pipeline:
+        pipe = await get_assertion_pipeline("test-model")
+
+        assert pipe is mock_pipeline
+        mock_hf_pipeline.assert_called_once_with(
+            "text-classification",
+            model="test-model",
+            device_map="auto",
+        )
+
+    get_assertion_pipeline.cache_clear()

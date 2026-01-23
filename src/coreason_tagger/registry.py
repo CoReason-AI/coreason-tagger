@@ -66,6 +66,26 @@ async def get_nuner_pipeline(model_name: str) -> Any:
 
 
 @alru_cache(maxsize=1)
+async def get_assertion_pipeline(model_name: str) -> Any:
+    """
+    Load the Assertion pipeline (text-classification).
+    Caches the result to ensure singleton behavior per model name.
+    """
+    logger.info(f"Loading Assertion pipeline: {model_name}")
+    loop = asyncio.get_running_loop()
+    # transformers.pipeline can trigger downloads, so run in executor
+    pipe = await loop.run_in_executor(
+        None,
+        lambda: pipeline(
+            "text-classification",
+            model=model_name,
+            device_map="auto",
+        ),
+    )
+    return pipe
+
+
+@alru_cache(maxsize=1)
 async def get_redis_client(redis_url: str) -> Optional[redis.Redis[Any]]:
     """
     Get a Redis client instance. Caches the result to ensure singleton behavior per URL.
