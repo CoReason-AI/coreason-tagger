@@ -9,7 +9,10 @@
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
 import asyncio
+import time
 from typing import Optional, Union
+
+from loguru import logger
 
 from coreason_tagger.interfaces import BaseAssertionDetector, BaseExtractor, BaseLinker
 from coreason_tagger.ner import ExtractorFactory
@@ -67,15 +70,19 @@ class CoreasonTagger:
             return None
 
         # 2. Contextualize (Assertion)
+        start_time = time.monotonic()
         assertion_status = await self.assertion.detect(
             text=text,
             span_text=candidate.text,
             span_start=candidate.start,
             span_end=candidate.end,
         )
+        logger.debug(f"Assertion detection for '{candidate.text}' took {(time.monotonic() - start_time) * 1000:.2f}ms")
 
         # 3. Link (Vector Linking)
+        start_time = time.monotonic()
         linked_entity = await self.linker.resolve(candidate, text, strategy)
+        logger.debug(f"Linking for '{candidate.text}' took {(time.monotonic() - start_time) * 1000:.2f}ms")
 
         # If linking fails (concept_id is None), we skip this entity
         if not linked_entity.concept_id:
@@ -106,11 +113,15 @@ class CoreasonTagger:
         if not text:
             return []
 
+        logger.info(f"Starting extraction with strategy={strategy.value}")
+
         # 1. Resolve Extractor
         extractor = self._get_extractor(strategy)
 
         # 2. Extract (NER)
+        start_time = time.monotonic()
         candidates = await extractor.extract(text, labels)
+        logger.info(f"Extraction took {(time.monotonic() - start_time) * 1000:.2f}ms")
 
         # Process candidates concurrently
         tasks = [self._process_candidate(text, candidate, strategy) for candidate in candidates]
@@ -142,11 +153,15 @@ class CoreasonTagger:
         if not texts:
             return []
 
+        logger.info(f"Starting batch extraction with strategy={strategy.value}")
+
         # 1. Resolve Extractor
         extractor = self._get_extractor(strategy)
 
         # 2. Batch Extract (NER)
+        start_time = time.monotonic()
         batch_candidates = await extractor.extract_batch(texts, labels)
+        logger.info(f"Batch Extraction took {(time.monotonic() - start_time) * 1000:.2f}ms")
 
         batch_results: list[list[LinkedEntity]] = []
 
