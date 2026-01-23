@@ -8,6 +8,8 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
+from __future__ import annotations
+
 import asyncio
 import json
 from typing import Any, Dict, List, Optional
