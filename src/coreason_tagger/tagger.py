@@ -77,16 +77,12 @@ class CoreasonTagger:
             span_start=candidate.start,
             span_end=candidate.end,
         )
-        logger.debug(
-            f"Assertion detection for '{candidate.text}' took {(time.monotonic() - start_time) * 1000:.2f}ms"
-        )
+        logger.debug(f"Assertion detection for '{candidate.text}' took {(time.monotonic() - start_time) * 1000:.2f}ms")
 
         # 3. Link (Vector Linking)
         start_time = time.monotonic()
         linked_entity = await self.linker.resolve(candidate, text, strategy)
-        logger.debug(
-            f"Linking for '{candidate.text}' took {(time.monotonic() - start_time) * 1000:.2f}ms"
-        )
+        logger.debug(f"Linking for '{candidate.text}' took {(time.monotonic() - start_time) * 1000:.2f}ms")
 
         # If linking fails (concept_id is None), we skip this entity
         if not linked_entity.concept_id:

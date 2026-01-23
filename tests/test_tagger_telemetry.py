@@ -9,10 +9,10 @@
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
 import logging
+from typing import Generator
 from unittest.mock import AsyncMock
 
 import pytest
-from loguru import logger
 from coreason_tagger.interfaces import BaseAssertionDetector, BaseExtractor, BaseLinker
 from coreason_tagger.schema import (
     AssertionStatus,
@@ -21,6 +21,7 @@ from coreason_tagger.schema import (
     LinkedEntity,
 )
 from coreason_tagger.tagger import CoreasonTagger
+from loguru import logger
 
 
 @pytest.fixture
@@ -44,7 +45,7 @@ def tagger(mock_ner: AsyncMock, mock_assertion: AsyncMock, mock_linker: AsyncMoc
 
 
 @pytest.fixture(autouse=True)
-def propagate_loguru_to_caplog(caplog: pytest.LogCaptureFixture) -> None:
+def propagate_loguru_to_caplog(caplog: pytest.LogCaptureFixture) -> Generator[None, None, None]:
     """
     Redirect loguru logs to the pytest caplog fixture.
     """
@@ -129,7 +130,9 @@ async def test_telemetry_batch_logs_emitted(
     candidate = EntityCandidate(text="E", label="L", start=0, end=1, confidence=1.0, source_model="m")
     mock_ner.extract_batch.return_value = [[candidate]]
     mock_assertion.detect.return_value = AssertionStatus.PRESENT
-    mock_linker.resolve.return_value = LinkedEntity(**candidate.model_dump(), strategy_used=ExtractionStrategy.SPEED_GLINER, concept_id="C")
+    mock_linker.resolve.return_value = LinkedEntity(
+        **candidate.model_dump(), strategy_used=ExtractionStrategy.SPEED_GLINER, concept_id="C"
+    )
 
     await tagger.tag_batch(texts, labels)
 
