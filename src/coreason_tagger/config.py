@@ -43,5 +43,9 @@ class Settings(BaseSettings):
     LINKER_CANDIDATE_TOP_K: int = 10
     LINKER_WINDOW_SIZE: int = 50
 
+    # Redis Configuration
+    REDIS_URL: str | None = None
+    REDIS_TTL: int = 86400  # 24 hours
+
 
 settings = Settings()
