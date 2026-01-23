@@ -28,6 +28,8 @@ repos:
           - sentence-transformers
           - transformers
           - types-requests
+          - types-redis
+          - redis
   - repo: https://github.com/AleksaC/hadolint-py
     rev: v2.14.0
     hooks:
