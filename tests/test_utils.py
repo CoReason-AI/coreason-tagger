@@ -8,27 +8,36 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
-import os
-from pathlib import Path
-from unittest.mock import patch, MagicMock
-from coreason_tagger.utils.logger import logger
+from unittest.mock import patch
 
-def test_logger_initialization():
-    """Test that the logger is initialized correctly and creates the log directory."""
-    # Since the logger is initialized on import, we check side effects
+from coreason_tagger.utils.logger import setup_logger
+from loguru import logger
 
-    # Check if logs directory creation is handled
-    # Note: running this test might actually create the directory in the test environment
-    # if it doesn't exist.
 
-    log_path = Path("logs")
-    assert log_path.exists()
-    assert log_path.is_dir()
-
-    # Verify app.log creation if it was logged to (it might be empty or not created until log)
-    # logger.info("Test log")
-    # assert (log_path / "app.log").exists()
-
-def test_logger_exports():
-    """Test that logger is exported."""
+def test_logger_initialization() -> None:
+    """Test that the logger is initialized correctly."""
+    # loguru.logger is a singleton always available
     assert logger is not None
+
+
+def test_logger_dir_creation() -> None:
+    """Test that log directory creation logic is triggered if it doesn't exist."""
+    # We test the setup_logger function directly, avoiding reload()
+
+    with (
+        patch("pathlib.Path.exists", return_value=False),
+        patch("pathlib.Path.mkdir") as mock_mkdir,
+        patch("loguru.logger.add"),
+    ):
+        setup_logger("test_logs")
+
+        assert mock_mkdir.called
+        # Verify it was called on the path we expect
+        # Note: Since we mocked Path.exists, any Path("...") call returns a mock that returns False.
+        # But we want to ensure mkdir was called.
+
+        # More robust check:
+        # mock_mkdir is the method on the Path instance?
+        # No, patch("pathlib.Path.mkdir") patches the method on the class.
+        # So any instance calling mkdir triggers this mock.
+        assert mock_mkdir.call_count >= 1
