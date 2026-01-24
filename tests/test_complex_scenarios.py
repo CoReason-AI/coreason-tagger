@@ -17,7 +17,7 @@ from coreason_tagger.assertion_detector import RegexBasedAssertionDetector
 from coreason_tagger.codex_mock import MockCoreasonCodex
 from coreason_tagger.linker import VectorLinker
 from coreason_tagger.schema import AssertionStatus, EntityCandidate
-from coreason_tagger.tagger import CoreasonTagger
+from coreason_tagger.tagger import CoreasonTaggerAsync
 
 
 @pytest.fixture
@@ -97,7 +97,7 @@ async def test_mixed_assertion_in_sentence(mock_sentence_transformer_complex: Ma
     assertion_detector = RegexBasedAssertionDetector()
     codex_client = MockCoreasonCodex()
     linker = VectorLinker(codex_client=codex_client)
-    tagger = CoreasonTagger(ner=mock_ner, assertion=assertion_detector, linker=linker)
+    tagger = CoreasonTaggerAsync(ner=mock_ner, assertion=assertion_detector, linker=linker)
 
     results = await tagger.tag(text, labels=["Condition"])
 
@@ -151,7 +151,7 @@ async def test_duplicate_term_disambiguation(mock_sentence_transformer_complex: 
     codex_client = MockCoreasonCodex()
     # Use a small window to ensure local context dominates for this short sentence
     linker = VectorLinker(codex_client=codex_client, window_size=15)
-    tagger = CoreasonTagger(ner=mock_ner, assertion=assertion_detector, linker=linker)
+    tagger = CoreasonTaggerAsync(ner=mock_ner, assertion=assertion_detector, linker=linker)
 
     results = await tagger.tag(text, labels=["Condition", "Symptom"])
 

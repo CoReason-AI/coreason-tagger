@@ -78,3 +78,14 @@ async def test_search_http_error(client: RealCoreasonCodex) -> None:
 
         with pytest.raises(httpx.HTTPStatusError):
             await client.search("query")
+
+
+@pytest.mark.asyncio
+async def test_context_manager() -> None:
+    """Test that context manager closes the internal client."""
+    async with RealCoreasonCodex(api_url="http://test-api.com") as client:
+        assert isinstance(client, RealCoreasonCodex)
+        assert client._internal_client
+        assert not client._client.is_closed
+
+    assert client._client.is_closed
