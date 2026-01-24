@@ -206,7 +206,10 @@ class DistilBERTAssertionDetector(BaseAssertionDetector):
         }
 
     async def load_model(self) -> None:
-        """Lazy load the model pipeline."""
+        """Lazy load the model pipeline.
+
+        Uses the registry to get the singleton pipeline instance.
+        """
         if self.model is not None:
             return
         self.model = await get_assertion_pipeline(self.model_name)
