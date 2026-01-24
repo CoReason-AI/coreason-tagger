@@ -16,9 +16,11 @@ def mock_assertion() -> Any:
     detector.detect.return_value = "PRESENT"
     return detector
 
+
 @pytest.fixture
 def mock_linker() -> Any:
     linker = AsyncMock()
+
     # Return a LinkedEntity (mocked success)
     def resolve_side_effect(entity: EntityCandidate, ctx: str, strat: ExtractionStrategy) -> LinkedEntity:
         return LinkedEntity(
@@ -26,10 +28,12 @@ def mock_linker() -> Any:
             strategy_used=strat,
             concept_id="TEST:123",
             concept_name="Test Concept",
-            link_score=0.99
+            link_score=0.99,
         )
+
     linker.resolve.side_effect = resolve_side_effect
     return linker
+
 
 @pytest.mark.asyncio
 async def test_concurrent_model_access(mock_assertion: Any, mock_linker: Any) -> None:
@@ -50,14 +54,7 @@ async def test_concurrent_model_access(mock_assertion: Any, mock_linker: Any) ->
         # Simulate blocking work
         await asyncio.sleep(0.01)
         return [
-            EntityCandidate(
-                text=f"Entity_{text}",
-                start=0,
-                end=5,
-                label="Test",
-                confidence=0.9,
-                source_model="mock"
-            )
+            EntityCandidate(text=f"Entity_{text}", start=0, end=5, label="Test", confidence=0.9, source_model="mock")
         ]
 
     mock_extractor.extract.side_effect = delayed_extract
@@ -78,6 +75,7 @@ async def test_concurrent_model_access(mock_assertion: Any, mock_linker: Any) ->
         assert len(res) == 1
         assert res[0].text == f"Entity_doc_{i}"
 
+
 @pytest.mark.asyncio
 async def test_large_batch_processing(mock_assertion: Any, mock_linker: Any) -> None:
     """
@@ -91,16 +89,7 @@ async def test_large_batch_processing(mock_assertion: Any, mock_linker: Any) -> 
         # Simulate work
         await asyncio.sleep(0.01)
         return [
-            [
-                EntityCandidate(
-                    text=f"Ent_{t}",
-                    start=0,
-                    end=3,
-                    label="Test",
-                    confidence=0.9,
-                    source_model="mock"
-                )
-            ]
+            [EntityCandidate(text=f"Ent_{t}", start=0, end=3, label="Test", confidence=0.9, source_model="mock")]
             for t in texts
         ]
 
@@ -118,6 +107,7 @@ async def test_large_batch_processing(mock_assertion: Any, mock_linker: Any) -> 
     assert len(results) == 100
     assert results[0][0].text == "Ent_text_0"
     assert results[99][0].text == "Ent_text_99"
+
 
 @pytest.mark.asyncio
 async def test_exception_propagation_in_threads(mock_assertion: Any, mock_linker: Any) -> None:
@@ -140,6 +130,7 @@ async def test_exception_propagation_in_threads(mock_assertion: Any, mock_linker
 
     with pytest.raises(ValueError, match="Model Failure"):
         await tagger.tag("Input text", ["Label"])
+
 
 @pytest.mark.asyncio
 async def test_complex_scenario_mixed_failures(mock_assertion: Any, mock_linker: Any) -> None:
@@ -170,7 +161,7 @@ async def test_complex_scenario_mixed_failures(mock_assertion: Any, mock_linker:
             strategy_used=strat,
             concept_id="TEST:123",
             concept_name="Test Concept",
-            link_score=0.99
+            link_score=0.99,
         )
 
     mock_linker.resolve.side_effect = flaky_resolve
