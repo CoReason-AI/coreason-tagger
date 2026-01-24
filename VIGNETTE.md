@@ -10,14 +10,12 @@ This architecture introduces a **Strategy Pattern** to the extraction layer. It 
 
 ### 2. Under the Hood (The Dependencies & logic)
 
-The codebase leverages a modern, async-native stack designed for high throughput and type safety:
+The codebase leverages a modern, async-native stack designed for high throughput and resilience:
 
-*   **`asyncio` & `async-lru`**: The heart of the system is the `CoreasonTagger` orchestrator, which manages the "Extract-Contextualize-Link" loop. By building on `asyncio` and leveraging `async-lru` for aggressive caching, the system maximizes I/O concurrency—critical when fetching vector embeddings or querying external models.
-*   **`gliner` & `transformers`**: These libraries power the swappable extraction backends. `gliner` provides the "Speed" strategy via efficient zero-shot inference, while `transformers` enables the "Precision" strategy (NuNER Zero) and the assertion detection logic (DistilBERT).
-*   **`sentence-transformers` & `redis`**: The `VectorLinker` moves beyond brittle string matching. It uses Bi-Encoders from `sentence-transformers` to embed candidates and retrieve semantically similar concepts, backed by `redis` for persistent caching of expensive vector lookups.
+*   **`asyncio`, `async-lru` & `litellm`**: The heart of the system is the `CoreasonTagger` orchestrator, which manages the "Extract-Contextualize-Link" loop. The architecture utilizes `asyncio.gather` for concurrency and `async-lru` for aggressive in-memory caching. The "Reasoning" strategy implements a sophisticated **"Cluster & Verify"** pipeline: it uses `gliner` for high-recall candidate generation, clusters overlapping spans, and then uses `litellm` to verify candidates with a Small Language Model (SLM), filtering out false positives.
+*   **`gliner` & `transformers`**: These libraries power the swappable extraction backends. `gliner` provides the efficient zero-shot inference for the "Speed" strategy, while `transformers` enables the "Precision" strategy via the NuNER Zero model.
+*   **`sentence-transformers`, `redis` & `CircuitBreaker`**: The `VectorLinker` moves beyond brittle string matching. It uses Bi-Encoders from `sentence-transformers` to embed candidates and retrieve semantically similar concepts. Crucially, it implements a **Two-Tier Caching** strategy (Memory L1 + Redis L2) and protects external dependencies with a custom **Circuit Breaker**. If the vector database or API fails, the system "fails open" into an Offline Mode, preserving the entity extraction even if linking is temporarily unavailable.
 *   **`pydantic`**: Data integrity is non-negotiable. Pydantic v2 enforces strict schemas (`EntityCandidate`, `LinkedEntity`), ensuring that the complex flow of data between extractors, assertion detectors, and linkers remains valid and predictable.
-
-The internal logic follows a robust **Pipeline Architecture**. A request enters the `CoreasonTagger`, which delegates to an `ExtractorFactory` to instantiate the appropriate model (Singleton-wrapped to manage VRAM). Extracted candidates are then passed through an `AssertionEngine` for context (assigning attributes like `ABSENT` or `HISTORY`) before finally being resolved by the `VectorLinker`.
 
 ### 3. In Practice (The How)
 
@@ -44,7 +42,8 @@ async def main():
     assertion = RegexBasedAssertionDetector()
 
     # Linker requires a client (mocked here for demonstration)
-    # In production, this connects to a Vector DB
+    # In production, this connects to a Vector DB or Codex API
+    # The Linker includes automatic Circuit Breaker protection
     linker = VectorLinker(codex_client=...)
 
     # 2. Initialize the Orchestrator
@@ -70,25 +69,25 @@ if __name__ == "__main__":
 
 **Example 2: Batch Processing with Strategy Switching**
 
-The system shines when processing multiple documents, allowing you to choose the "Reasoning" strategy for more complex tasks.
+The system shines when processing multiple documents, allowing you to choose the "Reasoning" strategy for more complex tasks where ambiguity is high.
 
 ```python
-async def batch_process():
-    tagger = ... # (Initialized as above)
-
+async def batch_process(tagger: CoreasonTagger):
     texts = [
         "Mother had breast cancer.",
         "Rule out viral pneumonia."
     ]
 
-    # Use the Reasoning strategy (LLM-verified) for ambiguous cases
+    # Use the Reasoning strategy (Recall + LLM Verification) for ambiguous cases
+    # This strategy generates candidates with GLiNER and verifies them with an LLM
     results = await tagger.tag_batch(
         texts,
         labels=["Disease"],
         strategy=ExtractionStrategy.REASONING_LLM
     )
 
-    for text_entities in results:
+    for i, text_entities in enumerate(results):
+        print(f"--- Text {i+1} ---")
         for e in text_entities:
             # The Reasoning strategy filters false positives and handles complex contexts
             print(f"[{e.strategy_used}] Found: {e.text} ({e.assertion})")
