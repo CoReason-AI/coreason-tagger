@@ -15,12 +15,16 @@ from pydantic import BaseModel, Field
 
 
 class ExtractionStrategy(str, Enum):
+    """Enumeration of supported extraction strategies."""
+
     SPEED_GLINER = "SPEED_GLINER"
     PRECISION_NUNER = "PRECISION_NUNER"
     REASONING_LLM = "REASONING_LLM"
 
 
 class AssertionStatus(str, Enum):
+    """Enumeration of assertion statuses for entities."""
+
     PRESENT = "PRESENT"  # Default
     ABSENT = "ABSENT"  # Negated ("No signs of...")
     POSSIBLE = "POSSIBLE"  # Speculative ("Rule out...")
@@ -56,6 +60,8 @@ class LinkedEntity(EntityCandidate):
 
 
 class BatchRequest(BaseModel):
+    """Request model for batch processing."""
+
     texts: List[str]
     labels: List[str]
     config: dict[str, Any] = Field(default_factory=dict)  # Overrides
