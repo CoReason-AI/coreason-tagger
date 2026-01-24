@@ -11,7 +11,6 @@
 from typing import List
 
 import pytest
-
 from coreason_tagger.interfaces import BaseAssertionDetector, BaseExtractor, BaseLinker
 from coreason_tagger.schema import (
     AssertionStatus,

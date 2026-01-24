@@ -11,7 +11,6 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from coreason_tagger.registry import get_assertion_pipeline, get_redis_client
 
 

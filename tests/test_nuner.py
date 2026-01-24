@@ -12,7 +12,6 @@ from typing import Generator, Tuple
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from coreason_tagger.ner import NuNERExtractor
 from coreason_tagger.registry import get_nuner_pipeline
 
