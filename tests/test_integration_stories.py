@@ -17,7 +17,7 @@ from coreason_tagger.assertion_detector import RegexBasedAssertionDetector
 from coreason_tagger.codex_mock import MockCoreasonCodex
 from coreason_tagger.linker import VectorLinker
 from coreason_tagger.schema import AssertionStatus, EntityCandidate
-from coreason_tagger.tagger import CoreasonTagger
+from coreason_tagger.tagger import CoreasonTaggerAsync
 
 
 @pytest.fixture
@@ -79,7 +79,7 @@ async def test_story_a_family_history(mock_sentence_transformer_integration: Mag
     assertion_detector = RegexBasedAssertionDetector()
     codex_client = MockCoreasonCodex()
     linker = VectorLinker(codex_client=codex_client)
-    tagger = CoreasonTagger(ner=mock_ner, assertion=assertion_detector, linker=linker)
+    tagger = CoreasonTaggerAsync(ner=mock_ner, assertion=assertion_detector, linker=linker)
 
     # 2. Run Tagger
     results = await tagger.tag(text, labels=["Condition"])
@@ -123,7 +123,7 @@ async def test_story_b_ambiguous_drug(mock_sentence_transformer_integration: Mag
     assertion_detector = RegexBasedAssertionDetector()
     codex_client = MockCoreasonCodex()
     linker = VectorLinker(codex_client=codex_client)
-    tagger = CoreasonTagger(ner=mock_ner, assertion=assertion_detector, linker=linker)
+    tagger = CoreasonTaggerAsync(ner=mock_ner, assertion=assertion_detector, linker=linker)
 
     # 2. Run Tagger
     results = await tagger.tag(text, labels=["Drug"])

@@ -15,7 +15,7 @@ from coreason_tagger.assertion_detector import RegexBasedAssertionDetector
 from coreason_tagger.codex_mock import MockCoreasonCodex
 from coreason_tagger.linker import VectorLinker
 from coreason_tagger.schema import AssertionStatus, EntityCandidate
-from coreason_tagger.tagger import CoreasonTagger
+from coreason_tagger.tagger import CoreasonTaggerAsync
 
 
 @pytest.fixture
@@ -42,7 +42,7 @@ def tagger_components():  # type: ignore
         linker = VectorLinker(codex_client=codex_client)
         linker._rerank = AsyncMock(side_effect=lambda q, c: c[0] if c else {})  # type: ignore # Just pick top 1
 
-        tagger = CoreasonTagger(ner=mock_ner, assertion=assertion, linker=linker)
+        tagger = CoreasonTaggerAsync(ner=mock_ner, assertion=assertion, linker=linker)
         return tagger, mock_ner
 
 

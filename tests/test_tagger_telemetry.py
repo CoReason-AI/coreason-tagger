@@ -20,7 +20,7 @@ from coreason_tagger.schema import (
     ExtractionStrategy,
     LinkedEntity,
 )
-from coreason_tagger.tagger import CoreasonTagger
+from coreason_tagger.tagger import CoreasonTaggerAsync
 from loguru import logger
 
 
@@ -40,8 +40,8 @@ def mock_linker() -> AsyncMock:
 
 
 @pytest.fixture
-def tagger(mock_ner: AsyncMock, mock_assertion: AsyncMock, mock_linker: AsyncMock) -> CoreasonTagger:
-    return CoreasonTagger(ner=mock_ner, assertion=mock_assertion, linker=mock_linker)
+def tagger(mock_ner: AsyncMock, mock_assertion: AsyncMock, mock_linker: AsyncMock) -> CoreasonTaggerAsync:
+    return CoreasonTaggerAsync(ner=mock_ner, assertion=mock_assertion, linker=mock_linker)
 
 
 @pytest.fixture(autouse=True)
@@ -56,7 +56,7 @@ def propagate_loguru_to_caplog(caplog: pytest.LogCaptureFixture) -> Generator[No
 
 @pytest.mark.asyncio
 async def test_telemetry_logs_emitted(
-    tagger: CoreasonTagger,
+    tagger: CoreasonTaggerAsync,
     mock_ner: AsyncMock,
     mock_assertion: AsyncMock,
     mock_linker: AsyncMock,
@@ -114,7 +114,7 @@ async def test_telemetry_logs_emitted(
 
 @pytest.mark.asyncio
 async def test_telemetry_batch_logs_emitted(
-    tagger: CoreasonTagger,
+    tagger: CoreasonTaggerAsync,
     mock_ner: AsyncMock,
     mock_assertion: AsyncMock,
     mock_linker: AsyncMock,

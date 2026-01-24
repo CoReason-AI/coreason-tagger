@@ -18,13 +18,8 @@ from transformers import logging as transformers_logging
 from typing_extensions import Annotated
 
 from coreason_tagger import __version__
-from coreason_tagger.assertion_detector import RegexBasedAssertionDetector
-from coreason_tagger.codex_real import RealCoreasonCodex
-from coreason_tagger.config import settings
-from coreason_tagger.linker import VectorLinker
-from coreason_tagger.ner import ExtractorFactory
 from coreason_tagger.schema import ExtractionStrategy
-from coreason_tagger.tagger import CoreasonTagger
+from coreason_tagger.tagger import CoreasonTaggerAsync
 from coreason_tagger.utils.logger import logger, setup_logger
 
 transformers_logging.set_verbosity_error()  # type: ignore
@@ -33,20 +28,16 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 app = typer.Typer(help="CoReason Tagger CLI")
 
 
-def get_tagger() -> CoreasonTagger:
+def get_tagger() -> CoreasonTaggerAsync:
     """Factory function to initialize the full tagger pipeline.
 
     In a real app, this might rely on Dependency Injection containers.
 
     Returns:
-        CoreasonTagger: The initialized tagger instance.
+        CoreasonTaggerAsync: The initialized tagger instance.
     """
     logger.info("Initializing Tagger Pipeline...")
-    ner = ExtractorFactory()
-    assertion = RegexBasedAssertionDetector()
-    codex_client = RealCoreasonCodex(api_url=settings.CODEX_API_URL)
-    linker = VectorLinker(codex_client=codex_client)
-    return CoreasonTagger(ner=ner, assertion=assertion, linker=linker)
+    return CoreasonTaggerAsync()
 
 
 @app.command()
@@ -63,12 +54,12 @@ async def _tag_async(text: str, labels: List[str], strategy: ExtractionStrategy)
         labels: The labels to extract.
         strategy: The extraction strategy.
     """
-    tagger = get_tagger()
     try:
-        results = await tagger.tag(text, labels, strategy=strategy)
-        # Convert Pydantic models to list of dicts
-        output = [entity.model_dump() for entity in results]
-        typer.echo(json.dumps(output, indent=2))
+        async with get_tagger() as tagger:
+            results = await tagger.tag(text, labels, strategy=strategy)
+            # Convert Pydantic models to list of dicts
+            output = [entity.model_dump() for entity in results]
+            typer.echo(json.dumps(output, indent=2))
     except Exception as e:
         logger.exception("Failed to process text")
         typer.secho(f"Error: {e}", fg=typer.colors.RED, err=True)

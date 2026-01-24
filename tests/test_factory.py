@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from coreason_tagger.ner import ExtractorFactory, GLiNERExtractor, NuNERExtractor, ReasoningExtractor
 from coreason_tagger.schema import ExtractionStrategy
-from coreason_tagger.tagger import CoreasonTagger
+from coreason_tagger.tagger import CoreasonTaggerAsync
 
 
 def test_extractor_factory_strategies() -> None:
@@ -45,12 +45,12 @@ def test_extractor_factory_caching() -> None:
 
 @pytest.mark.asyncio
 async def test_tagger_with_factory() -> None:
-    """Test CoreasonTagger using ExtractorFactory."""
+    """Test CoreasonTaggerAsync using ExtractorFactory."""
     factory = ExtractorFactory()
     mock_assertion = AsyncMock()
     mock_linker = AsyncMock()
 
-    tagger = CoreasonTagger(factory, mock_assertion, mock_linker)
+    tagger = CoreasonTaggerAsync(factory, mock_assertion, mock_linker)
 
     # Tag with SPEED_GLINER
     # We need to mock the extract method of the extractor returned by factory
@@ -65,7 +65,7 @@ async def test_tagger_with_factory() -> None:
 
     mock_factory.get_extractor.return_value = mock_extractor
 
-    tagger = CoreasonTagger(mock_factory, mock_assertion, mock_linker)
+    tagger = CoreasonTaggerAsync(mock_factory, mock_assertion, mock_linker)
 
     await tagger.tag("test", ["Label"], strategy=ExtractionStrategy.SPEED_GLINER)
 
@@ -80,13 +80,13 @@ async def test_tagger_with_factory() -> None:
 
 @pytest.mark.asyncio
 async def test_tagger_legacy_init() -> None:
-    """Test CoreasonTagger initialized with single extractor (legacy)."""
+    """Test CoreasonTaggerAsync initialized with single extractor (legacy)."""
     mock_extractor = AsyncMock()
     mock_extractor.extract.return_value = []
     mock_assertion = AsyncMock()
     mock_linker = AsyncMock()
 
-    tagger = CoreasonTagger(mock_extractor, mock_assertion, mock_linker)
+    tagger = CoreasonTaggerAsync(mock_extractor, mock_assertion, mock_linker)
 
     # Strategy arg should be ignored for selection, but passed to processing
     await tagger.tag("test", ["Label"], strategy=ExtractionStrategy.PRECISION_NUNER)
