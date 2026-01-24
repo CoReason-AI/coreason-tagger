@@ -12,12 +12,13 @@ from typing import Any, Dict, List
 
 
 class MockCoreasonCodex:
-    """
-    Mock implementation of the Coreason Codex client for testing and local development.
+    """Mock implementation of the Coreason Codex client for testing and local development.
+
     Simulates semantic search and concept retrieval.
     """
 
     def __init__(self) -> None:
+        """Initialize the Mock Codex with a pre-defined set of concepts and synonyms."""
         self.concepts = {
             "RxNorm:161": {"concept_id": "RxNorm:161", "concept_name": "Acetaminophen"},
             "RxNorm:4603": {"concept_id": "RxNorm:4603", "concept_name": "Furosemide"},
@@ -62,9 +63,16 @@ class MockCoreasonCodex:
         self.concepts["HP:0002315"] = {"concept_id": "HP:0002315", "concept_name": "Headache"}
 
     async def search(self, query: str, top_k: int = 10) -> List[Dict[str, Any]]:
-        """
-        Simulate search. Returns exact matches or synonym matches.
+        """Simulate search. Returns exact matches or synonym matches.
+
         Also returns some random candidates to simulate "dense retrieval noise" for testing re-ranking.
+
+        Args:
+            query: The search query.
+            top_k: Number of results to return.
+
+        Returns:
+            List[Dict[str, Any]]: List of concept dictionaries.
         """
         results = []
         query_lower = query.lower().strip()
@@ -108,7 +116,14 @@ class MockCoreasonCodex:
         return unique_results[:top_k]
 
     async def get_concept(self, concept_id: str) -> Dict[str, Any]:
-        """Retrieve concept by ID."""
+        """Retrieve concept by ID.
+
+        Args:
+            concept_id: The ID of the concept to retrieve.
+
+        Returns:
+            Dict[str, Any]: The concept data or empty dict if not found.
+        """
         if concept_id in self.concepts:
             return self.concepts[concept_id]
         return {}

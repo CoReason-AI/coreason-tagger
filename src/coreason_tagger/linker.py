@@ -65,13 +65,21 @@ class VectorLinker(BaseLinker):
         self.redis_client: Optional[redis.Redis[Any]] = None
 
     async def _get_model(self) -> SentenceTransformer:
-        """Lazy load model via registry."""
+        """Lazy load model via registry.
+
+        Returns:
+            SentenceTransformer: The loaded model.
+        """
         if self.model is None:
             self.model = await get_sentence_transformer(self.model_name)
         return self.model
 
     async def _get_redis(self) -> Optional[redis.Redis[Any]]:
-        """Lazy load redis client via registry."""
+        """Lazy load redis client via registry.
+
+        Returns:
+            Optional[redis.Redis[Any]]: The redis client or None.
+        """
         if self.redis_client is None and settings.REDIS_URL:
             self.redis_client = await get_redis_client(settings.REDIS_URL)
         return self.redis_client
