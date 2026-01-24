@@ -149,17 +149,13 @@ class VectorLinker(BaseLinker):
         model = await self._get_model()
 
         # Step 2: Semantic Re-ranking
-        loop = asyncio.get_running_loop()
-
         # Encode the query (mention OR context)
-        query_embedding = await loop.run_in_executor(None, lambda: model.encode(query_text, convert_to_tensor=True))
+        query_embedding = await asyncio.to_thread(model.encode, query_text, convert_to_tensor=True)
 
         # Encode the candidates (definitions/names)
         # We use the 'concept_name' for encoding.
         candidate_names = [str(c.get("concept_name", "")) for c in candidates]
-        candidate_embeddings = await loop.run_in_executor(
-            None, lambda: model.encode(candidate_names, convert_to_tensor=True)
-        )
+        candidate_embeddings = await asyncio.to_thread(model.encode, candidate_names, convert_to_tensor=True)
 
         # Compute cosine similarity
         cosine_scores = util.cos_sim(query_embedding, candidate_embeddings)[0]
