@@ -196,10 +196,9 @@ class DistilBERTAssertionDetector(BaseAssertionDetector):
         post = text[span_end:]
         formatted_text = f"{pre}[entity] {span_text} [/entity]{post}"
 
-        loop = asyncio.get_running_loop()
         # Run inference in executor to avoid blocking
         # pipeline returns a list of dicts: [{'label': '...', 'score': ...}]
-        result = await loop.run_in_executor(None, lambda: self.model(formatted_text, truncation=True))
+        result = await asyncio.to_thread(self.model, formatted_text, truncation=True)
 
         if not result:
             return AssertionStatus.PRESENT
