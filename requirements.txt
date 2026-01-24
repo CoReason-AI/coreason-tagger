@@ -1,0 +1,11 @@
+loguru
+pydantic>=2.0
+pydantic-settings
+gliner
+sentence-transformers
+transformers
+async-lru
+litellm
+httpx
+redis
+typer

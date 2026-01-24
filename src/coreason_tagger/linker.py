@@ -27,8 +27,8 @@ from coreason_tagger.utils.circuit_breaker import CircuitBreaker, CircuitOpenErr
 
 
 class VectorLinker(BaseLinker):
-    """
-    Vector-Based Entity Linker using Bi-Encoders.
+    """Vector-Based Entity Linker using Bi-Encoders.
+
     Implements the Candidate Generation -> Semantic Re-ranking pipeline.
     """
 
@@ -39,19 +39,18 @@ class VectorLinker(BaseLinker):
         window_size: Optional[int] = None,
         candidate_top_k: Optional[int] = None,
     ) -> None:
-        """
-        Initialize the Vector Linker.
+        """Initialize the Vector Linker.
 
         Args:
             codex_client: An instance of the codex client.
                           Must strictly implement the CodexClient Protocol.
-            model_name (str, optional): The name of the sentence-transformers model to use.
-                                        If None, uses settings.LINKER_MODEL_NAME.
-            window_size (int, optional): The number of characters to include before and after the entity
-                                         when constructing the context window for re-ranking.
-                                         If None, uses settings.LINKER_WINDOW_SIZE.
-            candidate_top_k (int, optional): The number of candidates to retrieve from Codex.
-                                             If None, uses settings.LINKER_CANDIDATE_TOP_K.
+            model_name: The name of the sentence-transformers model to use.
+                        If None, uses settings.LINKER_MODEL_NAME.
+            window_size: The number of characters to include before and after the entity
+                         when constructing the context window for re-ranking.
+                         If None, uses settings.LINKER_WINDOW_SIZE.
+            candidate_top_k: The number of candidates to retrieve from Codex.
+                             If None, uses settings.LINKER_CANDIDATE_TOP_K.
         """
         self.codex_client = codex_client
         self.model_name = model_name or settings.LINKER_MODEL_NAME
@@ -78,7 +77,14 @@ class VectorLinker(BaseLinker):
         return self.redis_client
 
     async def _check_redis_cache(self, text: str) -> Optional[List[Dict[str, Any]]]:
-        """Check L2 Redis cache."""
+        """Check L2 Redis cache.
+
+        Args:
+            text: The text to look up.
+
+        Returns:
+            Optional[List[Dict[str, Any]]]: The cached candidates or None.
+        """
         try:
             client = await self._get_redis()
             if not client:
@@ -93,7 +99,12 @@ class VectorLinker(BaseLinker):
         return None
 
     async def _write_redis_cache(self, text: str, candidates: List[Dict[str, Any]]) -> None:
-        """Write to L2 Redis cache."""
+        """Write to L2 Redis cache.
+
+        Args:
+            text: The text key.
+            candidates: The candidates to cache.
+        """
         try:
             client = await self._get_redis()
             if not client:
@@ -107,11 +118,17 @@ class VectorLinker(BaseLinker):
 
     @alru_cache(maxsize=1024)
     async def _get_candidates_impl(self, text: str) -> List[Dict[str, Any]]:
-        """
-        Implementation of candidate generation using Codex with caching.
+        """Implementation of candidate generation using Codex with caching.
+
         L1 Cache: alru_cache (Memory)
         L2 Cache: Redis
         Fallback: Codex Search (Circuit Breaker protected)
+
+        Args:
+            text: The text to search for.
+
+        Returns:
+            List[Dict[str, Any]]: The list of candidate concepts.
         """
 
         # L2 Cache Check (Redis)
@@ -140,8 +157,14 @@ class VectorLinker(BaseLinker):
             raise
 
     async def _rerank(self, query_text: str, candidates: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """
-        Perform semantic re-ranking using the Bi-Encoder.
+        """Perform semantic re-ranking using the Bi-Encoder.
+
+        Args:
+            query_text: The context-aware query text.
+            candidates: The list of candidates to re-rank.
+
+        Returns:
+            Dict[str, Any]: The best matching candidate with 'link_score'.
         """
         if not candidates:
             return {}
@@ -177,9 +200,17 @@ class VectorLinker(BaseLinker):
         strategy: ExtractionStrategy,
         match: Optional[Dict[str, Any]] = None,
     ) -> LinkedEntity:
-        """
-        Helper to construct a LinkedEntity from a candidate and an optional match.
+        """Helper to construct a LinkedEntity from a candidate and an optional match.
+
         Reduces code duplication for returning results.
+
+        Args:
+            entity: The original entity candidate.
+            strategy: The extraction strategy used.
+            match: The matched concept data.
+
+        Returns:
+            LinkedEntity: The final linked entity.
         """
         base_data = entity.model_dump()
 
@@ -195,8 +226,15 @@ class VectorLinker(BaseLinker):
         return LinkedEntity(**base_data, strategy_used=strategy)
 
     async def resolve(self, entity: EntityCandidate, context: str, strategy: ExtractionStrategy) -> LinkedEntity:
-        """
-        Link an extracted entity to a concept in the codex.
+        """Link an extracted entity to a concept in the codex.
+
+        Args:
+            entity: The extracted entity candidate.
+            context: The context text surrounding the entity.
+            strategy: The extraction strategy used.
+
+        Returns:
+            LinkedEntity: The linked entity result.
         """
         text = entity.text
         if not text:

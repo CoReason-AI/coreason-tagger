@@ -14,18 +14,32 @@ import httpx
 
 
 class RealCoreasonCodex:
-    """
-    Real implementation of the Coreason Codex client.
+    """Real implementation of the Coreason Codex client.
+
     Connects to a real database service (e.g. Postgres/Vector).
     Uses httpx for asynchronous HTTP requests.
     """
 
     def __init__(self, api_url: str) -> None:
+        """Initialize the RealCoreasonCodex client.
+
+        Args:
+            api_url: The base URL of the Codex API.
+        """
         self.api_url = api_url
 
     async def search(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
-        """
-        Search for concepts in the real database.
+        """Search for concepts in the real database.
+
+        Args:
+            query: The search query.
+            top_k: The number of results to return. Defaults to 5.
+
+        Returns:
+            List[Dict[str, Any]]: A list of found concepts.
+
+        Raises:
+            httpx.HTTPStatusError: If the API request fails.
         """
         async with httpx.AsyncClient() as client:
             response = await client.get(
@@ -37,8 +51,16 @@ class RealCoreasonCodex:
             return response.json()  # type: ignore
 
     async def get_concept(self, concept_id: str) -> Dict[str, Any]:
-        """
-        Retrieve a specific concept by ID.
+        """Retrieve a specific concept by ID.
+
+        Args:
+            concept_id: The ID of the concept to retrieve.
+
+        Returns:
+            Dict[str, Any]: The concept data.
+
+        Raises:
+            httpx.HTTPStatusError: If the API request fails.
         """
         async with httpx.AsyncClient() as client:
             response = await client.get(f"{self.api_url}/concept/{concept_id}", timeout=5.0)

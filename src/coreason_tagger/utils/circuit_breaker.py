@@ -19,6 +19,8 @@ T = TypeVar("T")
 
 
 class CircuitState(Enum):
+    """Enumeration of circuit breaker states."""
+
     CLOSED = "CLOSED"
     OPEN = "OPEN"
     HALF_OPEN = "HALF_OPEN"
@@ -31,8 +33,8 @@ class CircuitOpenError(Exception):
 
 
 class CircuitBreaker:
-    """
-    A Singleton Circuit Breaker implementation.
+    """A Singleton Circuit Breaker implementation.
+
     Triggers after `max_failures` within `window_seconds`.
     Attempts reset after `reset_timeout_seconds`.
     """
@@ -40,6 +42,7 @@ class CircuitBreaker:
     _instance = None
 
     def __new__(cls, *args: Any, **kwargs: Any) -> "CircuitBreaker":
+        """Ensure singleton instance."""
         if cls._instance is None:
             cls._instance = super(CircuitBreaker, cls).__new__(cls)
             cls._instance._initialized = False
@@ -51,6 +54,13 @@ class CircuitBreaker:
         window_seconds: int = 10,
         reset_timeout_seconds: int = 30,
     ) -> None:
+        """Initialize the CircuitBreaker.
+
+        Args:
+            max_failures: Number of failures allowed before opening the circuit. Defaults to 5.
+            window_seconds: Time window in seconds to track failures. Defaults to 10.
+            reset_timeout_seconds: Time in seconds to wait before attempting recovery (HALF_OPEN). Defaults to 30.
+        """
         if getattr(self, "_initialized", False):
             return
 
@@ -71,10 +81,15 @@ class CircuitBreaker:
 
     @property
     def state(self) -> CircuitState:
+        """Get the current state of the circuit breaker."""
         return self._state
 
     def _clean_window(self, now: float) -> None:
-        """Remove failures that are outside the sliding window."""
+        """Remove failures that are outside the sliding window.
+
+        Args:
+            now: Current monotonic time.
+        """
         while self._failures and self._failures[0] < now - self.window_seconds:
             self._failures.popleft()
 
@@ -106,8 +121,19 @@ class CircuitBreaker:
             logger.info("Circuit Breaker transition: HALF_OPEN -> CLOSED. Recovered.")
 
     async def call(self, func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
-        """
-        Execute the async function wrapped in the circuit breaker.
+        """Execute the async function wrapped in the circuit breaker.
+
+        Args:
+            func: The async function to execute.
+            *args: Positional arguments for the function.
+            **kwargs: Keyword arguments for the function.
+
+        Returns:
+            Any: The result of the function call.
+
+        Raises:
+            CircuitOpenError: If the circuit is open.
+            Exception: Re-raises any exception from the wrapped function.
         """
         now = time.monotonic()
 
