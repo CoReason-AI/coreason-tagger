@@ -12,9 +12,26 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """
-    Application configuration settings.
+    """Application configuration settings.
+
     Values can be overridden by environment variables (e.g., APP_ENV=production).
+
+    Attributes:
+        APP_ENV: The application environment (development/production).
+        DEBUG: Whether to enable debug mode.
+        LOG_LEVEL: Logging level (INFO, DEBUG, etc.).
+        NER_MODEL_NAME: Default GLiNER model name.
+        NUNER_MODEL_NAME: Default NuNER model name.
+        ASSERTION_MODEL_NAME: Default Assertion model name.
+        LLM_MODEL_NAME: Default LLM model name for reasoning.
+        LLM_API_KEY: API key for the LLM service.
+        CODEX_API_URL: URL for the Codex API.
+        CODEX_API_KEY: API key for the Codex API.
+        LINKER_MODEL_NAME: Default Sentence Transformer model for linking.
+        LINKER_CANDIDATE_TOP_K: Number of candidates to retrieve.
+        LINKER_WINDOW_SIZE: Context window size for linking.
+        REDIS_URL: Redis connection URL.
+        REDIS_TTL: Redis cache time-to-live in seconds.
     """
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")

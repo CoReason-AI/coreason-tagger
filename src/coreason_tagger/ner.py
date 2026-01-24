@@ -23,37 +23,33 @@ from coreason_tagger.schema import EntityCandidate, ExtractionStrategy
 
 
 class GLiNERExtractor(BaseExtractor):
-    """
-    Zero-Shot NER Extractor using the GLiNER library.
+    """Zero-Shot NER Extractor using the GLiNER library.
+
     Wraps the underlying model to provide a clean interface for extracting entities.
     """
 
     def __init__(self, model_name: Optional[str] = None) -> None:
-        """
-        Initialize the GLiNER extractor.
+        """Initialize the GLiNER extractor.
 
         Args:
-            model_name (str, optional): The name of the GLiNER model to load.
-                                        If None, uses the value from settings.NER_MODEL_NAME.
+            model_name: The name of the GLiNER model to load.
+                If None, uses the value from settings.NER_MODEL_NAME.
         """
         self.model_name = model_name or settings.NER_MODEL_NAME
         self.model: Optional[GLiNER] = None
 
     async def load_model(self) -> None:
-        """
-        Lazy loading of weights to VRAM via the registry (Singleton).
-        """
+        """Lazy loading of weights to VRAM via the registry (Singleton)."""
         if self.model is not None:
             return
 
         self.model = await get_gliner_model(self.model_name)
 
     def _build_candidate(self, entity: dict[str, Any]) -> EntityCandidate:
-        """
-        Helper to convert a raw dictionary from GLiNER into an EntityCandidate.
+        """Helper to convert a raw dictionary from GLiNER into an EntityCandidate.
 
         Args:
-            entity (dict[str, Any]): Raw entity dictionary containing 'text', 'label', 'start', 'end', 'score'.
+            entity: Raw entity dictionary containing 'text', 'label', 'start', 'end', 'score'.
 
         Returns:
             EntityCandidate: The typed entity candidate.
@@ -68,13 +64,12 @@ class GLiNERExtractor(BaseExtractor):
         )
 
     async def extract(self, text: str, labels: list[str], threshold: float = 0.3) -> list[EntityCandidate]:
-        """
-        Extract entities from text using the provided labels.
+        """Extract entities from text using the provided labels.
 
         Args:
-            text (str): The input text to process.
-            labels (list[str]): A list of entity types to detect.
-            threshold (float): The confidence threshold. Defaults to 0.3.
+            text: The input text to process.
+            labels: A list of entity types to detect.
+            threshold: The confidence threshold. Defaults to 0.3.
 
         Returns:
             list[EntityCandidate]: A list of detected entity candidates.
@@ -97,17 +92,16 @@ class GLiNERExtractor(BaseExtractor):
     async def extract_batch(
         self, texts: list[str], labels: list[str], threshold: float = 0.3
     ) -> list[list[EntityCandidate]]:
-        """
-        Extract entities from a batch of texts using the provided labels.
+        """Extract entities from a batch of texts using the provided labels.
 
         Args:
-            texts (list[str]): The list of input texts to process.
-            labels (list[str]): A list of entity types to detect.
-            threshold (float): The confidence threshold. Defaults to 0.3.
+            texts: The list of input texts to process.
+            labels: A list of entity types to detect.
+            threshold: The confidence threshold. Defaults to 0.3.
 
         Returns:
             list[list[EntityCandidate]]: A list of lists, where each inner list contains
-                                       detected entity candidates for the corresponding text.
+                detected entity candidates for the corresponding text.
         """
         self.validate_threshold(threshold)
 
@@ -137,38 +131,32 @@ class GLiNERExtractor(BaseExtractor):
 
 
 class NuNERExtractor(BaseExtractor):
-    """
-    Precision NER Extractor using NuNER Zero (via transformers pipeline).
-    """
+    """Precision NER Extractor using NuNER Zero (via transformers pipeline)."""
 
     def __init__(self, model_name: Optional[str] = None) -> None:
-        """
-        Initialize the NuNER extractor.
+        """Initialize the NuNER extractor.
 
         Args:
-            model_name (str, optional): The name of the NuNER model to load.
-                                        If None, uses the value from settings.NUNER_MODEL_NAME.
+            model_name: The name of the NuNER model to load.
+                If None, uses the value from settings.NUNER_MODEL_NAME.
         """
         self.model_name = model_name or settings.NUNER_MODEL_NAME
         self.model: Any = None  # The pipeline object
 
     async def load_model(self) -> None:
-        """
-        Lazy loading of weights to VRAM via the registry (Singleton).
-        """
+        """Lazy loading of weights to VRAM via the registry (Singleton)."""
         if self.model is not None:
             return
 
         self.model = await get_nuner_pipeline(self.model_name)
 
     def _build_candidate(self, entity: dict[str, Any]) -> EntityCandidate:
-        """
-        Helper to convert a raw dictionary from transformers pipeline into an EntityCandidate.
+        """Helper to convert a raw dictionary from transformers pipeline into an EntityCandidate.
 
         Args:
-            entity (dict[str, Any]): Raw entity dictionary containing 'word', 'entity_group', 'start', 'end', 'score'.
-                                     Note: 'word' is the text span,
-                                           'entity_group' is the label (when aggregation_strategy='simple').
+            entity: Raw entity dictionary containing 'word', 'entity_group', 'start', 'end', 'score'.
+                Note: 'word' is the text span,
+                'entity_group' is the label (when aggregation_strategy='simple').
 
         Returns:
             EntityCandidate: The typed entity candidate.
@@ -183,8 +171,15 @@ class NuNERExtractor(BaseExtractor):
         )
 
     async def extract(self, text: str, labels: list[str], threshold: float = 0.5) -> list[EntityCandidate]:
-        """
-        Extract entities from text.
+        """Extract entities from text.
+
+        Args:
+            text: The input text to process.
+            labels: A list of entity types to filter by.
+            threshold: The confidence threshold. Defaults to 0.5.
+
+        Returns:
+            list[EntityCandidate]: A list of detected entity candidates.
         """
         self.validate_threshold(threshold)
 
@@ -215,8 +210,15 @@ class NuNERExtractor(BaseExtractor):
     async def extract_batch(
         self, texts: list[str], labels: list[str], threshold: float = 0.5
     ) -> list[list[EntityCandidate]]:
-        """
-        Extract entities from a batch of texts.
+        """Extract entities from a batch of texts.
+
+        Args:
+            texts: The list of input texts to process.
+            labels: A list of entity types to filter by.
+            threshold: The confidence threshold. Defaults to 0.5.
+
+        Returns:
+            list[list[EntityCandidate]]: A list of lists of detected entity candidates.
         """
         self.validate_threshold(threshold)
 
@@ -247,9 +249,7 @@ class NuNERExtractor(BaseExtractor):
 
 
 class ReasoningExtractor(BaseExtractor):
-    """
-    Reasoning NER Extractor using an Ensemble of GLiNER (for recall) and an LLM (for verification).
-    """
+    """Reasoning NER Extractor using an Ensemble of GLiNER (for recall) and an LLM (for verification)."""
 
     def __init__(
         self,
@@ -257,8 +257,7 @@ class ReasoningExtractor(BaseExtractor):
         llm_model_name: Optional[str] = None,
         llm_api_key: Optional[str] = None,
     ) -> None:
-        """
-        Initialize the Reasoning extractor.
+        """Initialize the Reasoning extractor.
 
         Args:
             gliner_model_name: Name of the GLiNER model for candidate generation.
@@ -271,16 +270,20 @@ class ReasoningExtractor(BaseExtractor):
         self.recall_threshold = 0.15  # Low threshold for high recall
 
     async def load_model(self) -> None:
-        """
-        Load the underlying GLiNER model.
-        """
+        """Load the underlying GLiNER model."""
         await self.gliner.load_model()
 
     def _cluster_candidates(self, candidates: List[EntityCandidate]) -> List[EntityCandidate]:
-        """
-        Cluster overlapping candidates by merging them (Union).
+        """Cluster overlapping candidates by merging them (Union).
+
         If multiple spans overlap by > 50%, group them into a single candidate
         taking the union of their spans.
+
+        Args:
+            candidates: List of raw entity candidates.
+
+        Returns:
+            List[EntityCandidate]: List of clustered candidates.
         """
         if not candidates:
             return []
@@ -322,8 +325,13 @@ class ReasoningExtractor(BaseExtractor):
         return clustered
 
     def _merge_group(self, group: List[EntityCandidate]) -> EntityCandidate:
-        """
-        Merge a group of overlapping candidates into a single candidate (Union).
+        """Merge a group of overlapping candidates into a single candidate (Union).
+
+        Args:
+            group: A list of overlapping candidates.
+
+        Returns:
+            EntityCandidate: The merged candidate.
         """
         if len(group) == 1:
             return group[0]
@@ -333,8 +341,14 @@ class ReasoningExtractor(BaseExtractor):
         return best_candidate
 
     async def _verify_with_llm(self, text: str, candidates: List[EntityCandidate]) -> List[EntityCandidate]:
-        """
-        Verify candidates using an LLM.
+        """Verify candidates using an LLM.
+
+        Args:
+            text: The full context text.
+            candidates: The list of candidate entities to verify.
+
+        Returns:
+            List[EntityCandidate]: The list of verified entities.
         """
         if not candidates:
             return []
@@ -376,8 +390,15 @@ class ReasoningExtractor(BaseExtractor):
             return candidates
 
     async def extract(self, text: str, labels: List[str], threshold: float = 0.5) -> List[EntityCandidate]:
-        """
-        Extract entities using Reasoning strategy.
+        """Extract entities using Reasoning strategy.
+
+        Args:
+            text: The input text.
+            labels: The list of labels.
+            threshold: The confidence threshold.
+
+        Returns:
+            List[EntityCandidate]: Verified entities.
         """
         # 1. Candidate Generation (High Recall)
         raw_candidates = await self.gliner.extract(text, labels, threshold=self.recall_threshold)
@@ -393,10 +414,18 @@ class ReasoningExtractor(BaseExtractor):
     async def extract_batch(
         self, texts: List[str], labels: List[str], threshold: float = 0.5
     ) -> List[List[EntityCandidate]]:
-        """
-        Batch extraction.
+        """Batch extraction using Reasoning strategy.
+
         Note: LLM verification is hard to batch efficiently with different contexts in one prompt
         without complex prompt engineering. We will iterate for verification.
+
+        Args:
+            texts: List of input texts.
+            labels: List of labels.
+            threshold: Confidence threshold.
+
+        Returns:
+            List[List[EntityCandidate]]: Verified entities per text.
         """
         # 1. Batch Candidate Generation
         batch_raw_candidates = await self.gliner.extract_batch(texts, labels, threshold=self.recall_threshold)
@@ -416,8 +445,8 @@ class ReasoningExtractor(BaseExtractor):
 
 
 class ExtractorFactory:
-    """
-    Factory for creating/retrieving extractor instances based on strategy.
+    """Factory for creating/retrieving extractor instances based on strategy.
+
     Implements the Strategy Pattern.
     """
 
@@ -425,8 +454,7 @@ class ExtractorFactory:
         self._cache: Dict[ExtractionStrategy, BaseExtractor] = {}
 
     def get_extractor(self, strategy: ExtractionStrategy) -> BaseExtractor:
-        """
-        Get the extractor instance for the given strategy.
+        """Get the extractor instance for the given strategy.
 
         Args:
             strategy: The extraction strategy.

@@ -34,9 +34,12 @@ app = typer.Typer(help="CoReason Tagger CLI")
 
 
 def get_tagger() -> CoreasonTagger:
-    """
-    Factory function to initialize the full tagger pipeline.
+    """Factory function to initialize the full tagger pipeline.
+
     In a real app, this might rely on Dependency Injection containers.
+
+    Returns:
+        CoreasonTagger: The initialized tagger instance.
     """
     logger.info("Initializing Tagger Pipeline...")
     ner = ExtractorFactory()
@@ -53,7 +56,13 @@ def version() -> None:
 
 
 async def _tag_async(text: str, labels: List[str], strategy: ExtractionStrategy) -> None:
-    """Async helper for the tag command."""
+    """Async helper for the tag command.
+
+    Args:
+        text: The input text.
+        labels: The labels to extract.
+        strategy: The extraction strategy.
+    """
     tagger = get_tagger()
     try:
         results = await tagger.tag(text, labels, strategy=strategy)
@@ -74,8 +83,12 @@ def tag(
         ExtractionStrategy, typer.Option("--strategy", "-s", help="Extraction strategy to use")
     ] = ExtractionStrategy.SPEED_GLINER,
 ) -> None:
-    """
-    Tag a single string of text and output JSON.
+    """Tag a single string of text and output JSON.
+
+    Args:
+        text: The text to tag.
+        labels: Optional list of labels to extract. Defaults to ["Symptom", "Drug", "Condition"].
+        strategy: The extraction strategy to use. Defaults to SPEED_GLINER.
     """
     if labels is None:
         # Default labels if none provided
