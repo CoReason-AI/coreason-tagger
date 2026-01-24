@@ -23,8 +23,13 @@ from transformers import pipeline
 
 @alru_cache(maxsize=1)
 async def get_gliner_model(model_name: str) -> GLiNER:
-    """
-    Load the GLiNER model. Caches the result to ensure singleton behavior per model name.
+    """Load the GLiNER model. Caches the result to ensure singleton behavior per model name.
+
+    Args:
+        model_name: The name or path of the GLiNER model.
+
+    Returns:
+        GLiNER: The loaded GLiNER model instance.
     """
     logger.info(f"Loading GLiNER model: {model_name}")
     # GLiNER.from_pretrained can trigger downloads, so run in executor
@@ -34,8 +39,13 @@ async def get_gliner_model(model_name: str) -> GLiNER:
 
 @alru_cache(maxsize=1)
 async def get_sentence_transformer(model_name: str) -> SentenceTransformer:
-    """
-    Load the SentenceTransformer model. Caches the result to ensure singleton behavior per model name.
+    """Load the SentenceTransformer model. Caches the result to ensure singleton behavior per model name.
+
+    Args:
+        model_name: The name or path of the SentenceTransformer model.
+
+    Returns:
+        SentenceTransformer: The loaded SentenceTransformer model instance.
     """
     logger.info(f"Loading SentenceTransformer model: {model_name}")
     model = await asyncio.to_thread(SentenceTransformer, model_name)
@@ -44,9 +54,15 @@ async def get_sentence_transformer(model_name: str) -> SentenceTransformer:
 
 @alru_cache(maxsize=1)
 async def get_nuner_pipeline(model_name: str) -> Any:
-    """
-    Load the NuNER pipeline (token-classification).
+    """Load the NuNER pipeline (token-classification).
+
     Caches the result to ensure singleton behavior per model name.
+
+    Args:
+        model_name: The name or path of the NuNER model.
+
+    Returns:
+        Any: The loaded transformers pipeline for token classification.
     """
     logger.info(f"Loading NuNER pipeline: {model_name}")
     # transformers.pipeline can trigger downloads, so run in executor
@@ -62,9 +78,15 @@ async def get_nuner_pipeline(model_name: str) -> Any:
 
 @alru_cache(maxsize=1)
 async def get_assertion_pipeline(model_name: str) -> Any:
-    """
-    Load the Assertion pipeline (text-classification).
+    """Load the Assertion pipeline (text-classification).
+
     Caches the result to ensure singleton behavior per model name.
+
+    Args:
+        model_name: The name or path of the assertion model.
+
+    Returns:
+        Any: The loaded transformers pipeline for text classification.
     """
     logger.info(f"Loading Assertion pipeline: {model_name}")
     # transformers.pipeline can trigger downloads, so run in executor
@@ -79,9 +101,13 @@ async def get_assertion_pipeline(model_name: str) -> Any:
 
 @alru_cache(maxsize=1)
 async def get_redis_client(redis_url: str) -> Optional[redis.Redis[Any]]:
-    """
-    Get a Redis client instance. Caches the result to ensure singleton behavior per URL.
-    Returns None if redis_url is empty.
+    """Get a Redis client instance. Caches the result to ensure singleton behavior per URL.
+
+    Args:
+        redis_url: The URL connection string for Redis.
+
+    Returns:
+        Optional[redis.Redis[Any]]: The Redis client instance, or None if redis_url is empty.
     """
     if not redis_url:
         return None

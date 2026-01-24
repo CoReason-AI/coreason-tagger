@@ -20,8 +20,8 @@ from coreason_tagger.schema import EntityCandidate, ExtractionStrategy, LinkedEn
 
 
 class CoreasonTagger:
-    """
-    The orchestrator for the coreason-tagger pipeline.
+    """The orchestrator for the coreason-tagger pipeline.
+
     Implements the Extract-Contextualize-Link loop.
     """
 
@@ -31,8 +31,7 @@ class CoreasonTagger:
         assertion: BaseAssertionDetector,
         linker: BaseLinker,
     ) -> None:
-        """
-        Initialize the Tagger with its dependencies.
+        """Initialize the Tagger with its dependencies.
 
         Args:
             ner: The NER extractor (e.g., GLiNER) OR an ExtractorFactory.
@@ -46,7 +45,14 @@ class CoreasonTagger:
         self.linker = linker
 
     def _get_extractor(self, strategy: ExtractionStrategy) -> BaseExtractor:
-        """Helper to resolve the correct extractor."""
+        """Helper to resolve the correct extractor.
+
+        Args:
+            strategy: The extraction strategy to use.
+
+        Returns:
+            BaseExtractor: The appropriate extractor instance.
+        """
         if isinstance(self.ner_or_factory, ExtractorFactory):
             return self.ner_or_factory.get_extractor(strategy)
         return self.ner_or_factory
@@ -54,8 +60,7 @@ class CoreasonTagger:
     async def _process_candidate(
         self, text: str, candidate: EntityCandidate, strategy: ExtractionStrategy
     ) -> Optional[LinkedEntity]:
-        """
-        Process a single candidate: contextualize (assertion) and link.
+        """Process a single candidate: contextualize (assertion) and link.
 
         Args:
             text: The full context text.
@@ -63,7 +68,7 @@ class CoreasonTagger:
             strategy: The extraction strategy used.
 
         Returns:
-            Optional[LinkedEntity]: The processed entity, or None if linking failed.
+            Optional[LinkedEntity]: The processed entity, or None if linking failed/skipped.
         """
         # Guard: If span text is empty, it's useless and will fail validation.
         if not candidate.text or not candidate.text.strip():
@@ -99,8 +104,7 @@ class CoreasonTagger:
         candidates: list[EntityCandidate],
         strategy: ExtractionStrategy,
     ) -> list[LinkedEntity]:
-        """
-        Helper to process a list of candidates concurrently: contextualize and link.
+        """Helper to process a list of candidates concurrently: contextualize and link.
 
         Args:
             text: The full context text.
@@ -126,13 +130,12 @@ class CoreasonTagger:
         labels: list[str],
         strategy: ExtractionStrategy = ExtractionStrategy.SPEED_GLINER,
     ) -> list[LinkedEntity]:
-        """
-        Process text to extract, contextualize, and link entities.
+        """Process text to extract, contextualize, and link entities.
 
         Args:
             text: The input text.
             labels: The list of labels to extract (passed to NER).
-            strategy: The strategy to attribute to the entities.
+            strategy: The strategy to attribute to the entities. Defaults to SPEED_GLINER.
 
         Returns:
             list[LinkedEntity]: The list of fully processed entities.
@@ -159,14 +162,14 @@ class CoreasonTagger:
         labels: list[str],
         strategy: ExtractionStrategy = ExtractionStrategy.SPEED_GLINER,
     ) -> list[list[LinkedEntity]]:
-        """
-        Process a batch of texts to extract, contextualize, and link entities.
+        """Process a batch of texts to extract, contextualize, and link entities.
+
         Optimized for batch NER processing.
 
         Args:
             texts: The list of input texts.
             labels: The list of labels to extract.
-            strategy: The strategy to attribute to the entities.
+            strategy: The strategy to attribute to the entities. Defaults to SPEED_GLINER.
 
         Returns:
             list[list[LinkedEntity]]: A list of lists of processed entities, corresponding to the input texts.

@@ -19,13 +19,14 @@ from coreason_tagger.schema import AssertionStatus
 
 
 class RegexBasedAssertionDetector(BaseAssertionDetector):
-    """
-    A rule-based assertion detector using regular expressions.
+    """A rule-based assertion detector using regular expressions.
+
     Prioritizes statuses in a specific order:
     FAMILY > CONDITIONAL > ABSENT > POSSIBLE > HISTORY > PRESENT
     """
 
     def __init__(self) -> None:
+        """Initialize the RegexBasedAssertionDetector and compile patterns."""
         # Compile patterns for efficiency
         # We join patterns with | to create a single regex for each category
         # This avoids iterating through lists of strings
@@ -92,13 +93,28 @@ class RegexBasedAssertionDetector(BaseAssertionDetector):
         self.cannot_rule_out_regex = re.compile(r"\bcannot rule out\b", re.IGNORECASE)
 
     def _compile(self, patterns: List[str]) -> re.Pattern[str]:
-        """Compile a list of regex patterns into a single optimized pattern."""
+        """Compile a list of regex patterns into a single optimized pattern.
+
+        Args:
+            patterns: List of regex strings.
+
+        Returns:
+            re.Pattern: Compiled regex pattern.
+        """
         return re.compile("|".join(f"(?:{p})" for p in patterns), re.IGNORECASE)
 
     def _get_local_context(self, text: str, span_start: int, span_end: int) -> str:
-        """
-        Extract the local context (e.g., current clause) around the span.
+        """Extract the local context (e.g., current clause) around the span.
+
         Splits by common clause delimiters: . ; ,
+
+        Args:
+            text: Full text.
+            span_start: Start index of the entity.
+            span_end: End index of the entity.
+
+        Returns:
+            str: The local clause text.
         """
         # Find clause boundaries
         # Look backwards for delimiter or start
@@ -117,9 +133,18 @@ class RegexBasedAssertionDetector(BaseAssertionDetector):
         return text[start_idx:end_idx].strip()
 
     async def detect(self, text: str, span_text: str, span_start: int, span_end: int) -> AssertionStatus:
-        """
-        Detect assertion status by analyzing the window of text around the entity.
+        """Detect assertion status by analyzing the window of text around the entity.
+
         Currently analyzes the local clause context.
+
+        Args:
+            text: The full context text.
+            span_text: The text of the entity.
+            span_start: The start index of the entity.
+            span_end: The end index of the entity.
+
+        Returns:
+            AssertionStatus: The detected assertion status.
         """
         # Use local context (clause) instead of full text to avoid cross-contamination
         context_text = self._get_local_context(text, span_start, span_end)
@@ -155,11 +180,14 @@ class RegexBasedAssertionDetector(BaseAssertionDetector):
 
 
 class DistilBERTAssertionDetector(BaseAssertionDetector):
-    """
-    Assertion detector using a DistilBERT model.
-    """
+    """Assertion detector using a DistilBERT model."""
 
     def __init__(self, model_name: Optional[str] = None) -> None:
+        """Initialize the DistilBERTAssertionDetector.
+
+        Args:
+            model_name: The name of the model to load.
+        """
         self.model_name = model_name or settings.ASSERTION_MODEL_NAME
         self.model: Any = None
         # Default mapping for common assertion models
@@ -184,8 +212,16 @@ class DistilBERTAssertionDetector(BaseAssertionDetector):
         self.model = await get_assertion_pipeline(self.model_name)
 
     async def detect(self, text: str, span_text: str, span_start: int, span_end: int) -> AssertionStatus:
-        """
-        Detect assertion status using the loaded model.
+        """Detect assertion status using the loaded model.
+
+        Args:
+            text: The full context text.
+            span_text: The text of the entity.
+            span_start: The start index of the entity.
+            span_end: The end index of the entity.
+
+        Returns:
+            AssertionStatus: The detected assertion status.
         """
         if self.model is None:
             await self.load_model()
