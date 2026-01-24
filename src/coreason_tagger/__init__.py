@@ -17,6 +17,7 @@ from coreason_tagger.schema import (
     ExtractionStrategy,
     LinkedEntity,
 )
+from coreason_tagger.tagger import CoreasonTagger, CoreasonTaggerAsync
 
 __version__ = "0.1.0"
 
@@ -26,6 +27,8 @@ __all__ = [
     "BaseLinker",
     "GLiNERExtractor",
     "RegexBasedAssertionDetector",
+    "CoreasonTagger",
+    "CoreasonTaggerAsync",
     "AssertionStatus",
     "LinkedEntity",
     "EntityCandidate",

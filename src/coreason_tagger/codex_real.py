@@ -8,7 +8,7 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import httpx
 
@@ -20,13 +20,25 @@ class RealCoreasonCodex:
     Uses httpx for asynchronous HTTP requests.
     """
 
-    def __init__(self, api_url: str) -> None:
+    def __init__(self, api_url: str, client: Optional[httpx.AsyncClient] = None) -> None:
         """Initialize the RealCoreasonCodex client.
 
         Args:
             api_url: The base URL of the Codex API.
+            client: Optional external httpx.AsyncClient. If None, one will be created.
         """
         self.api_url = api_url
+        self._internal_client = client is None
+        self._client = client or httpx.AsyncClient()
+
+    async def __aenter__(self) -> "RealCoreasonCodex":
+        """Async context manager entry."""
+        return self
+
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        """Async context manager exit."""
+        if self._internal_client:
+            await self._client.aclose()
 
     async def search(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
         """Search for concepts in the real database.
@@ -41,14 +53,13 @@ class RealCoreasonCodex:
         Raises:
             httpx.HTTPStatusError: If the API request fails.
         """
-        async with httpx.AsyncClient() as client:
-            response = await client.get(
-                f"{self.api_url}/search",
-                params={"q": query, "top_k": str(top_k)},
-                timeout=5.0,
-            )
-            response.raise_for_status()
-            return response.json()  # type: ignore
+        response = await self._client.get(
+            f"{self.api_url}/search",
+            params={"q": query, "top_k": str(top_k)},
+            timeout=5.0,
+        )
+        response.raise_for_status()
+        return response.json()  # type: ignore
 
     async def get_concept(self, concept_id: str) -> Dict[str, Any]:
         """Retrieve a specific concept by ID.
@@ -62,7 +73,6 @@ class RealCoreasonCodex:
         Raises:
             httpx.HTTPStatusError: If the API request fails.
         """
-        async with httpx.AsyncClient() as client:
-            response = await client.get(f"{self.api_url}/concept/{concept_id}", timeout=5.0)
-            response.raise_for_status()
-            return response.json()  # type: ignore
+        response = await self._client.get(f"{self.api_url}/concept/{concept_id}", timeout=5.0)
+        response.raise_for_status()
+        return response.json()  # type: ignore

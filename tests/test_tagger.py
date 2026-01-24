@@ -18,7 +18,7 @@ from coreason_tagger.schema import (
     ExtractionStrategy,
     LinkedEntity,
 )
-from coreason_tagger.tagger import CoreasonTagger
+from coreason_tagger.tagger import CoreasonTaggerAsync
 
 
 @pytest.fixture
@@ -37,8 +37,8 @@ def mock_linker() -> AsyncMock:
 
 
 @pytest.fixture
-def tagger(mock_ner: AsyncMock, mock_assertion: AsyncMock, mock_linker: AsyncMock) -> CoreasonTagger:
-    return CoreasonTagger(ner=mock_ner, assertion=mock_assertion, linker=mock_linker)
+def tagger(mock_ner: AsyncMock, mock_assertion: AsyncMock, mock_linker: AsyncMock) -> CoreasonTaggerAsync:
+    return CoreasonTaggerAsync(ner=mock_ner, assertion=mock_assertion, linker=mock_linker)
 
 
 def create_linked_entity(
@@ -61,7 +61,7 @@ def create_linked_entity(
 
 @pytest.mark.asyncio
 async def test_tag_happy_path(
-    tagger: CoreasonTagger,
+    tagger: CoreasonTaggerAsync,
     mock_ner: AsyncMock,
     mock_assertion: AsyncMock,
     mock_linker: AsyncMock,
@@ -105,14 +105,14 @@ async def test_tag_happy_path(
 
 
 @pytest.mark.asyncio
-async def test_tag_empty_text(tagger: CoreasonTagger, mock_ner: AsyncMock) -> None:
+async def test_tag_empty_text(tagger: CoreasonTaggerAsync, mock_ner: AsyncMock) -> None:
     """Test that empty text returns empty list without calling extract."""
     assert await tagger.tag("", ["Label"]) == []
     mock_ner.extract.assert_not_called()
 
 
 @pytest.mark.asyncio
-async def test_tag_no_entities_found(tagger: CoreasonTagger, mock_ner: AsyncMock) -> None:
+async def test_tag_no_entities_found(tagger: CoreasonTaggerAsync, mock_ner: AsyncMock) -> None:
     """Test when NER finds nothing."""
     mock_ner.extract.return_value = []
     assert await tagger.tag("Clean text", ["Label"]) == []
@@ -120,7 +120,7 @@ async def test_tag_no_entities_found(tagger: CoreasonTagger, mock_ner: AsyncMock
 
 @pytest.mark.asyncio
 async def test_tag_linking_offline_mode(
-    tagger: CoreasonTagger,
+    tagger: CoreasonTaggerAsync,
     mock_ner: AsyncMock,
     mock_assertion: AsyncMock,
     mock_linker: AsyncMock,
@@ -147,7 +147,7 @@ async def test_tag_linking_offline_mode(
 
 @pytest.mark.asyncio
 async def test_multiple_entities(
-    tagger: CoreasonTagger,
+    tagger: CoreasonTaggerAsync,
     mock_ner: AsyncMock,
     mock_assertion: AsyncMock,
     mock_linker: AsyncMock,
@@ -182,7 +182,7 @@ async def test_multiple_entities(
 
 @pytest.mark.asyncio
 async def test_user_story_family_history(
-    tagger: CoreasonTagger, mock_ner: AsyncMock, mock_assertion: AsyncMock, mock_linker: AsyncMock
+    tagger: CoreasonTaggerAsync, mock_ner: AsyncMock, mock_assertion: AsyncMock, mock_linker: AsyncMock
 ) -> None:
     """
     Test User Story A: "Patient's mother died of breast cancer."
@@ -216,7 +216,7 @@ async def test_user_story_family_history(
 
 @pytest.mark.asyncio
 async def test_user_story_ambiguous_drug(
-    tagger: CoreasonTagger, mock_ner: AsyncMock, mock_assertion: AsyncMock, mock_linker: AsyncMock
+    tagger: CoreasonTaggerAsync, mock_ner: AsyncMock, mock_assertion: AsyncMock, mock_linker: AsyncMock
 ) -> None:
     """
     Test User Story B: "Administered 50mg of Lasix."
@@ -243,7 +243,7 @@ async def test_user_story_ambiguous_drug(
 
 @pytest.mark.asyncio
 async def test_robustness_empty_span_text(
-    tagger: CoreasonTagger, mock_ner: AsyncMock, mock_assertion: AsyncMock, mock_linker: AsyncMock
+    tagger: CoreasonTaggerAsync, mock_ner: AsyncMock, mock_assertion: AsyncMock, mock_linker: AsyncMock
 ) -> None:
     """
     Test robustness: If NER returns a span with empty text, it should be skipped.
@@ -271,7 +271,7 @@ async def test_robustness_empty_span_text(
 
 @pytest.mark.asyncio
 async def test_tag_batch_happy_path(
-    tagger: CoreasonTagger, mock_ner: AsyncMock, mock_assertion: AsyncMock, mock_linker: AsyncMock
+    tagger: CoreasonTaggerAsync, mock_ner: AsyncMock, mock_assertion: AsyncMock, mock_linker: AsyncMock
 ) -> None:
     """Test standard batch flow."""
     texts = ["Patient has fever.", "No cough detected."]
@@ -322,7 +322,7 @@ async def test_tag_batch_happy_path(
 
 
 @pytest.mark.asyncio
-async def test_tag_batch_empty_input(tagger: CoreasonTagger, mock_ner: AsyncMock) -> None:
+async def test_tag_batch_empty_input(tagger: CoreasonTaggerAsync, mock_ner: AsyncMock) -> None:
     """Test empty input list."""
     assert await tagger.tag_batch([], ["Label"]) == []
     mock_ner.extract_batch.assert_not_called()
@@ -330,7 +330,7 @@ async def test_tag_batch_empty_input(tagger: CoreasonTagger, mock_ner: AsyncMock
 
 @pytest.mark.asyncio
 async def test_tag_batch_mixed_empty_results(
-    tagger: CoreasonTagger, mock_ner: AsyncMock, mock_assertion: AsyncMock, mock_linker: AsyncMock
+    tagger: CoreasonTaggerAsync, mock_ner: AsyncMock, mock_assertion: AsyncMock, mock_linker: AsyncMock
 ) -> None:
     """Test batch where some texts have no entities."""
     texts = ["Has fever.", "Nothing here.", "Has cough."]
@@ -359,7 +359,7 @@ async def test_tag_batch_mixed_empty_results(
 
 @pytest.mark.asyncio
 async def test_tag_batch_context_alignment(
-    tagger: CoreasonTagger, mock_ner: AsyncMock, mock_assertion: AsyncMock, mock_linker: AsyncMock
+    tagger: CoreasonTaggerAsync, mock_ner: AsyncMock, mock_assertion: AsyncMock, mock_linker: AsyncMock
 ) -> None:
     """
     Verify that the correct context text is passed to assertion detector for each item in batch,
@@ -381,3 +381,13 @@ async def test_tag_batch_context_alignment(
     assert len(calls) == 2
     assert calls[0].kwargs["text"] == "Context A"
     assert calls[1].kwargs["text"] == "Context B"
+
+
+@pytest.mark.asyncio
+async def test_lifecycle(mock_ner: AsyncMock, mock_assertion: AsyncMock, mock_linker: AsyncMock) -> None:
+    """Test that context manager closes the internal client."""
+    async with CoreasonTaggerAsync(ner=mock_ner, assertion=mock_assertion, linker=mock_linker) as tagger:
+        assert tagger._internal_client
+        assert not tagger._client.is_closed
+
+    assert tagger._client.is_closed

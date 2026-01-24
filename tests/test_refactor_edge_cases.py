@@ -6,7 +6,7 @@ import pytest
 from coreason_tagger.interfaces import BaseExtractor
 from coreason_tagger.ner import ExtractorFactory
 from coreason_tagger.schema import EntityCandidate, ExtractionStrategy, LinkedEntity
-from coreason_tagger.tagger import CoreasonTagger
+from coreason_tagger.tagger import CoreasonTaggerAsync
 
 
 @pytest.fixture
@@ -63,7 +63,7 @@ async def test_concurrent_model_access(mock_assertion: Any, mock_linker: Any) ->
     factory = MagicMock(spec=ExtractorFactory)
     factory.get_extractor.return_value = mock_extractor
 
-    tagger = CoreasonTagger(ner=factory, assertion=mock_assertion, linker=mock_linker)
+    tagger = CoreasonTaggerAsync(ner=factory, assertion=mock_assertion, linker=mock_linker)
 
     # Launch 50 concurrent requests
     tasks = [tagger.tag(f"doc_{i}", ["Label"]) for i in range(50)]
@@ -98,7 +98,7 @@ async def test_large_batch_processing(mock_assertion: Any, mock_linker: Any) -> 
     factory = MagicMock(spec=ExtractorFactory)
     factory.get_extractor.return_value = mock_extractor
 
-    tagger = CoreasonTagger(ner=factory, assertion=mock_assertion, linker=mock_linker)
+    tagger = CoreasonTaggerAsync(ner=factory, assertion=mock_assertion, linker=mock_linker)
 
     # 100 documents
     texts = [f"text_{i}" for i in range(100)]
@@ -126,7 +126,7 @@ async def test_exception_propagation_in_threads(mock_assertion: Any, mock_linker
     # The 'predict_entities' method is what's called inside asyncio.to_thread
     extractor.model.predict_entities.side_effect = ValueError("Model Failure")
 
-    tagger = CoreasonTagger(ner=extractor, assertion=mock_assertion, linker=mock_linker)
+    tagger = CoreasonTaggerAsync(ner=extractor, assertion=mock_assertion, linker=mock_linker)
 
     with pytest.raises(ValueError, match="Model Failure"):
         await tagger.tag("Input text", ["Label"])
@@ -166,7 +166,7 @@ async def test_complex_scenario_mixed_failures(mock_assertion: Any, mock_linker:
 
     mock_linker.resolve.side_effect = flaky_resolve
 
-    tagger = CoreasonTagger(ner=factory, assertion=mock_assertion, linker=mock_linker)
+    tagger = CoreasonTaggerAsync(ner=factory, assertion=mock_assertion, linker=mock_linker)
 
     # In the current implementation, if _process_candidate crashes (e.g. linker crash),
     # asyncio.gather will raise the exception immediately unless return_exceptions=True.

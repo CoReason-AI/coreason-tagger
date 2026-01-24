@@ -10,26 +10,34 @@
 
 import asyncio
 import time
-from typing import Optional, Union
+from typing import Any, Optional, Union, cast
 
+import anyio
+import httpx
 from loguru import logger
 
+from coreason_tagger.assertion_detector import RegexBasedAssertionDetector
+from coreason_tagger.codex_real import RealCoreasonCodex
+from coreason_tagger.config import settings
 from coreason_tagger.interfaces import BaseAssertionDetector, BaseExtractor, BaseLinker
+from coreason_tagger.linker import VectorLinker
 from coreason_tagger.ner import ExtractorFactory
 from coreason_tagger.schema import EntityCandidate, ExtractionStrategy, LinkedEntity
 
 
-class CoreasonTagger:
+class CoreasonTaggerAsync:
     """The orchestrator for the coreason-tagger pipeline.
 
     Implements the Extract-Contextualize-Link loop.
+    Manages resources via Async Context Manager.
     """
 
     def __init__(
         self,
-        ner: Union[BaseExtractor, ExtractorFactory],
-        assertion: BaseAssertionDetector,
-        linker: BaseLinker,
+        ner: Optional[Union[BaseExtractor, ExtractorFactory]] = None,
+        assertion: Optional[BaseAssertionDetector] = None,
+        linker: Optional[BaseLinker] = None,
+        client: Optional[httpx.AsyncClient] = None,
     ) -> None:
         """Initialize the Tagger with its dependencies.
 
@@ -39,10 +47,36 @@ class CoreasonTagger:
                  If ExtractorFactory is passed, it supports dynamic strategy switching.
             assertion: The assertion detector.
             linker: The entity linker.
+            client: Optional external httpx.AsyncClient. If provided, the service will share it.
         """
+        self._internal_client = client is None
+        self._client = client or httpx.AsyncClient()
+
+        # Build defaults if not provided, injecting the shared client where appropriate
+        if ner is None:
+            ner = ExtractorFactory()
+
+        if assertion is None:
+            assertion = RegexBasedAssertionDetector()
+
+        if linker is None:
+            # We construct the default linker with the shared client
+            codex_client = RealCoreasonCodex(api_url=settings.CODEX_API_URL, client=self._client)
+            linker = VectorLinker(codex_client=codex_client)
+
         self.ner_or_factory = ner
         self.assertion = assertion
         self.linker = linker
+
+    async def __aenter__(self) -> "CoreasonTaggerAsync":
+        """Async context manager entry."""
+        return self
+
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        """Async context manager exit."""
+        if self._internal_client:
+            await self._client.aclose()
+        # Potentially close other resources if needed
 
     def _get_extractor(self, strategy: ExtractionStrategy) -> BaseExtractor:
         """Helper to resolve the correct extractor.
@@ -195,3 +229,56 @@ class CoreasonTagger:
         batch_results = await asyncio.gather(*tasks)
 
         return list(batch_results)
+
+
+class CoreasonTagger:
+    """Sync Facade for CoreasonTaggerAsync.
+
+    Allows blocking usage of the tagger.
+    """
+
+    def __init__(
+        self,
+        ner: Optional[Union[BaseExtractor, ExtractorFactory]] = None,
+        assertion: Optional[BaseAssertionDetector] = None,
+        linker: Optional[BaseLinker] = None,
+        client: Optional[httpx.AsyncClient] = None,
+    ) -> None:
+        """Initialize the Sync Tagger Facade.
+
+        Wraps CoreasonTaggerAsync.
+        """
+        self._async = CoreasonTaggerAsync(ner, assertion, linker, client)
+
+    def __enter__(self) -> "CoreasonTagger":
+        """Context manager entry."""
+        anyio.run(self._async.__aenter__)
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        """Context manager exit."""
+        anyio.run(self._async.__aexit__, exc_type, exc_val, exc_tb)
+
+    def tag(
+        self,
+        text: str,
+        labels: list[str],
+        strategy: ExtractionStrategy = ExtractionStrategy.SPEED_GLINER,
+    ) -> list[LinkedEntity]:
+        """Process text (blocking)."""
+        return cast(
+            list[LinkedEntity],
+            anyio.run(self._async.tag, text, labels, strategy),
+        )
+
+    def tag_batch(
+        self,
+        texts: list[str],
+        labels: list[str],
+        strategy: ExtractionStrategy = ExtractionStrategy.SPEED_GLINER,
+    ) -> list[list[LinkedEntity]]:
+        """Process batch of texts (blocking)."""
+        return cast(
+            list[list[LinkedEntity]],
+            anyio.run(self._async.tag_batch, texts, labels, strategy),
+        )

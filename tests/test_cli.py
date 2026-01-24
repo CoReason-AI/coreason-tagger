@@ -14,7 +14,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from coreason_tagger import __version__
 from coreason_tagger.main import app, get_tagger
 from coreason_tagger.schema import AssertionStatus, ExtractionStrategy, LinkedEntity
-from coreason_tagger.tagger import CoreasonTagger
+from coreason_tagger.tagger import CoreasonTaggerAsync
 from typer.testing import CliRunner
 
 runner = CliRunner()
@@ -31,7 +31,10 @@ def test_version_command() -> None:
 def test_tag_command_success(mock_get_tagger: MagicMock) -> None:
     """Test the tag command with a valid input."""
     # Mock the tagger instance and its tag method
-    mock_tagger_instance = AsyncMock(spec=CoreasonTagger)
+    mock_tagger_instance = AsyncMock(spec=CoreasonTaggerAsync)
+    mock_tagger_instance.__aenter__.return_value = mock_tagger_instance
+    mock_tagger_instance.__aexit__.return_value = None
+
     mock_get_tagger.return_value = mock_tagger_instance
 
     # Return a dummy entity
@@ -66,7 +69,10 @@ def test_tag_command_success(mock_get_tagger: MagicMock) -> None:
 @patch("coreason_tagger.main.get_tagger")
 def test_tag_command_custom_labels(mock_get_tagger: MagicMock) -> None:
     """Test the tag command with custom labels."""
-    mock_tagger_instance = AsyncMock(spec=CoreasonTagger)
+    mock_tagger_instance = AsyncMock(spec=CoreasonTaggerAsync)
+    mock_tagger_instance.__aenter__.return_value = mock_tagger_instance
+    mock_tagger_instance.__aexit__.return_value = None
+
     mock_get_tagger.return_value = mock_tagger_instance
     mock_tagger_instance.tag.return_value = []
 
@@ -84,7 +90,10 @@ def test_tag_command_custom_labels(mock_get_tagger: MagicMock) -> None:
 @patch("coreason_tagger.main.get_tagger")
 def test_tag_command_with_strategy(mock_get_tagger: MagicMock) -> None:
     """Test the tag command with explicit strategy."""
-    mock_tagger_instance = AsyncMock(spec=CoreasonTagger)
+    mock_tagger_instance = AsyncMock(spec=CoreasonTaggerAsync)
+    mock_tagger_instance.__aenter__.return_value = mock_tagger_instance
+    mock_tagger_instance.__aexit__.return_value = None
+
     mock_get_tagger.return_value = mock_tagger_instance
     mock_tagger_instance.tag.return_value = []
 
@@ -98,7 +107,10 @@ def test_tag_command_with_strategy(mock_get_tagger: MagicMock) -> None:
 @patch("coreason_tagger.main.get_tagger")
 def test_tag_command_error(mock_get_tagger: MagicMock) -> None:
     """Test error handling in tag command."""
-    mock_tagger_instance = AsyncMock(spec=CoreasonTagger)
+    mock_tagger_instance = AsyncMock(spec=CoreasonTaggerAsync)
+    mock_tagger_instance.__aenter__.return_value = mock_tagger_instance
+    mock_tagger_instance.__aexit__.return_value = None
+
     mock_get_tagger.return_value = mock_tagger_instance
     mock_tagger_instance.tag.side_effect = Exception("Pipeline failure")
 
@@ -110,16 +122,17 @@ def test_tag_command_error(mock_get_tagger: MagicMock) -> None:
 
 def test_get_tagger_factory() -> None:
     """
-    Test the factory function creates a valid CoreasonTagger instance.
+    Test the factory function creates a valid CoreasonTaggerAsync instance.
     We mock the heavy dependencies to make this unit test fast.
     """
     with (
-        patch("coreason_tagger.main.ExtractorFactory"),
-        patch("coreason_tagger.main.VectorLinker"),
-        patch("coreason_tagger.main.RealCoreasonCodex"),
+        patch("coreason_tagger.tagger.ExtractorFactory"),
+        patch("coreason_tagger.tagger.VectorLinker"),
+        patch("coreason_tagger.tagger.RealCoreasonCodex"),
+        patch("coreason_tagger.tagger.RegexBasedAssertionDetector"),
     ):
         tagger = get_tagger()
-        assert isinstance(tagger, CoreasonTagger)
+        assert isinstance(tagger, CoreasonTaggerAsync)
         assert tagger.ner_or_factory is not None
         assert tagger.assertion is not None
         assert tagger.linker is not None
