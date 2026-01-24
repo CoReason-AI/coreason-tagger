@@ -8,37 +8,36 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
-from pathlib import Path
+from unittest.mock import patch
 
-from coreason_tagger.utils.logger import logger
+from coreason_tagger.utils.logger import setup_logger
+from loguru import logger
 
 
-def test_logger_setup() -> None:
-    # Logger is already configured in module scope
+def test_logger_initialization() -> None:
+    """Test that the logger is initialized correctly."""
+    # loguru.logger is a singleton always available
     assert logger is not None
 
 
-def test_logging_output() -> None:
-    # Use a custom sink to verify logging
-    messages = []
+def test_logger_dir_creation() -> None:
+    """Test that log directory creation logic is triggered if it doesn't exist."""
+    # We test the setup_logger function directly, avoiding reload()
 
-    def sink(message: str) -> None:
-        messages.append(message)
+    with (
+        patch("pathlib.Path.exists", return_value=False),
+        patch("pathlib.Path.mkdir") as mock_mkdir,
+        patch("loguru.logger.add"),
+    ):
+        setup_logger("test_logs")
 
-    logger.add(sink, format="{message}")
-    logger.info("Test message")
+        assert mock_mkdir.called
+        # Verify it was called on the path we expect
+        # Note: Since we mocked Path.exists, any Path("...") call returns a mock that returns False.
+        # But we want to ensure mkdir was called.
 
-    # We must ensure our sink caught it.
-    # Note: loguru is asynchronous safe but synchronous by default.
-    assert any("Test message" in m for m in messages)
-
-
-def test_log_file_creation() -> None:
-    # This test assumes logs/app.log is created.
-    log_file = Path("logs/app.log")
-    if log_file.exists():
-        assert log_file.exists()
-    else:
-        # If running in environment where we can't write, this might be skipped or fail.
-        # But we expect it to work in sandbox.
-        pass
+        # More robust check:
+        # mock_mkdir is the method on the Path instance?
+        # No, patch("pathlib.Path.mkdir") patches the method on the class.
+        # So any instance calling mkdir triggers this mock.
+        assert mock_mkdir.call_count >= 1

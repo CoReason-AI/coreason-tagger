@@ -9,37 +9,59 @@
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
 from enum import Enum
+from typing import Any, List, Optional
 
 from pydantic import BaseModel, Field
 
 
+class ExtractionStrategy(str, Enum):
+    """Enumeration of supported extraction strategies."""
+
+    SPEED_GLINER = "SPEED_GLINER"
+    PRECISION_NUNER = "PRECISION_NUNER"
+    REASONING_LLM = "REASONING_LLM"
+
+
 class AssertionStatus(str, Enum):
-    """
-    Status of an assertion (e.g., Present, Absent, Possible).
-    Combines requirements from Section 3.2 and Section 6 of the PRD.
-    """
+    """Enumeration of assertion statuses for entities."""
 
-    PRESENT = "PRESENT"
-    ABSENT = "ABSENT"
-    POSSIBLE = "POSSIBLE"
-    CONDITIONAL = "CONDITIONAL"
-    FAMILY = "FAMILY_HISTORY"
-    ASSOCIATED_WITH_SOMEONE_ELSE = "ASSOCIATED_WITH_SOMEONE_ELSE"
+    PRESENT = "PRESENT"  # Default
+    ABSENT = "ABSENT"  # Negated ("No signs of...")
+    POSSIBLE = "POSSIBLE"  # Speculative ("Rule out...")
+    CONDITIONAL = "CONDITIONAL"  # ("If symptoms persist...")
+    HISTORY = "HISTORY"  # ("History of...")
+    FAMILY = "FAMILY"  # ("Mother had...")
 
 
-class TaggedEntity(BaseModel):
-    """
-    Represents a normalized entity extracted from text, contextualized with assertion status,
-    and linked to a concept ID.
-    """
+class EntityCandidate(BaseModel):
+    """Raw output from the NER layer."""
 
-    span_text: str = Field(..., min_length=1, description="The extracted text span.")
-    label: str = Field(..., min_length=1, description="The entity label (e.g., Symptom).")
+    text: str
+    start: int
+    end: int
+    label: str
+    confidence: float
+    source_model: str  # e.g., "gliner_large_v2"
 
-    # The Link (What is it?)
-    concept_id: str = Field(..., min_length=1, description="The unique concept ID (e.g., SNOMED:123).")
-    concept_name: str = Field(..., min_length=1, description="The canonical name of the concept.")
-    link_confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score between 0.0 and 1.0.")
 
-    # The Context (Is it real?)
-    assertion: AssertionStatus
+class LinkedEntity(EntityCandidate):
+    """The final hydrated entity."""
+
+    # Context
+    assertion: AssertionStatus = Field(default=AssertionStatus.PRESENT)
+
+    # Linking (NEN)
+    concept_id: Optional[str] = None  # "SNOMED:12345"
+    concept_name: Optional[str] = None  # "Viral Rhinitis"
+    link_score: float = 0.0  # Cosine similarity
+
+    # Traceability
+    strategy_used: ExtractionStrategy
+
+
+class BatchRequest(BaseModel):
+    """Request model for batch processing."""
+
+    texts: List[str]
+    labels: List[str]
+    config: dict[str, Any] = Field(default_factory=dict)  # Overrides
