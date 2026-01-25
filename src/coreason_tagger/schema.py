@@ -65,3 +65,11 @@ class BatchRequest(BaseModel):
     texts: List[str]
     labels: List[str]
     config: dict[str, Any] = Field(default_factory=dict)  # Overrides
+
+
+class TaggingRequest(BaseModel):
+    """Request model for single text processing."""
+
+    text: str
+    labels: List[str]
+    strategy: ExtractionStrategy = ExtractionStrategy.SPEED_GLINER
