@@ -266,7 +266,10 @@ class CoreasonTagger:
         strategy: ExtractionStrategy = ExtractionStrategy.SPEED_GLINER,
     ) -> list[LinkedEntity]:
         """Process text (blocking)."""
-        return anyio.run(self._async.tag, text, labels, strategy)
+        return cast(
+            list[LinkedEntity],
+            anyio.run(self._async.tag, text, labels, strategy),
+        )
 
     def tag_batch(
         self,
@@ -275,4 +278,7 @@ class CoreasonTagger:
         strategy: ExtractionStrategy = ExtractionStrategy.SPEED_GLINER,
     ) -> list[list[LinkedEntity]]:
         """Process batch of texts (blocking)."""
-        return anyio.run(self._async.tag_batch, texts, labels, strategy)
+        return cast(
+            list[list[LinkedEntity]],
+            anyio.run(self._async.tag_batch, texts, labels, strategy),
+        )
