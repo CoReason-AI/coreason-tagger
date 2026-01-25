@@ -35,3 +35,8 @@ COPY --from=builder /wheels /wheels
 
 # Install the application wheel
 RUN pip install --no-cache-dir /wheels/*.whl
+
+# Pre-download models
+RUN python -c "from coreason_tagger.config import settings; from gliner import GLiNER; GLiNER.from_pretrained(settings.NER_MODEL_NAME)"
+
+CMD ["uvicorn", "coreason_tagger.server:app", "--host", "0.0.0.0", "--port", "8000"]

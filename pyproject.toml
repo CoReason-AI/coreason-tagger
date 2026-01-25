@@ -21,6 +21,9 @@ httpx = "^0.28.1"
 redis = "^7.1.0"
 anyio = "^4.4.0"
 aiofiles = "^24.1.0"
+fastapi = "^0.128.0"
+uvicorn = "^0.40.0"
+python-multipart = "^0.0.22"
 
 [tool.poetry.group.dev.dependencies]
 types-aiofiles = "^24.1.0"
