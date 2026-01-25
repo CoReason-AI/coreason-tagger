@@ -19,7 +19,7 @@ from coreason_tagger.schema import (
 )
 from coreason_tagger.tagger import CoreasonTagger, CoreasonTaggerAsync
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     "BaseAssertionDetector",
