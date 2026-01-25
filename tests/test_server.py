@@ -8,23 +8,21 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
-from fastapi.testclient import TestClient
-from coreason_tagger.server import app
 from coreason_tagger.config import settings
+from coreason_tagger.server import app
+from fastapi.testclient import TestClient
 
-def test_health_check():
+
+def test_health_check() -> None:
     with TestClient(app) as client:
         response = client.get("/health")
         assert response.status_code == 200
         assert response.json() == {"status": "ready", "model": settings.NER_MODEL_NAME}
 
-def test_tag_endpoint():
+
+def test_tag_endpoint() -> None:
     with TestClient(app) as client:
-        payload = {
-            "text": "Patient has severe headache.",
-            "labels": ["Symptom"],
-            "strategy": "SPEED_GLINER"
-        }
+        payload = {"text": "Patient has severe headache.", "labels": ["Symptom"], "strategy": "SPEED_GLINER"}
         response = client.post("/tag", json=payload)
         assert response.status_code == 200
         data = response.json()

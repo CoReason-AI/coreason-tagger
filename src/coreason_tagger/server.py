@@ -9,18 +9,19 @@
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
 from contextlib import asynccontextmanager
+from typing import Any, AsyncGenerator, Dict
 
 from fastapi import FastAPI
 from loguru import logger
 
 from coreason_tagger.config import settings
 from coreason_tagger.ner import ExtractorFactory
-from coreason_tagger.schema import ExtractionStrategy, TaggingRequest, LinkedEntity
+from coreason_tagger.schema import ExtractionStrategy, LinkedEntity, TaggingRequest
 from coreason_tagger.tagger import CoreasonTaggerAsync
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Lifespan context manager to initialize the tagger and load models."""
     logger.info("Initializing CoreasonTaggerAsync...")
     tagger = CoreasonTaggerAsync()
@@ -45,13 +46,13 @@ app = FastAPI(title="Coreason Tagger NER Service", lifespan=lifespan)
 
 
 @app.post("/tag", response_model=list[LinkedEntity])
-async def tag_text(request: TaggingRequest):
+async def tag_text(request: TaggingRequest) -> list[LinkedEntity]:
     """Extract entities from text."""
     tagger: CoreasonTaggerAsync = app.state.tagger
     return await tagger.tag(request.text, request.labels, request.strategy)
 
 
 @app.get("/health")
-async def health_check():
+async def health_check() -> Dict[str, Any]:
     """Health check endpoint."""
     return {"status": "ready", "model": settings.NER_MODEL_NAME}
