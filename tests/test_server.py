@@ -8,9 +8,10 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_tagger
 
+from fastapi.testclient import TestClient
+
 from coreason_tagger.config import settings
 from coreason_tagger.server import app
-from fastapi.testclient import TestClient
 
 
 def test_health_check() -> None:

@@ -13,6 +13,8 @@ from typing import Generator
 from unittest.mock import AsyncMock
 
 import pytest
+from loguru import logger
+
 from coreason_tagger.interfaces import BaseAssertionDetector, BaseExtractor, BaseLinker
 from coreason_tagger.schema import (
     AssertionStatus,
@@ -21,7 +23,6 @@ from coreason_tagger.schema import (
     LinkedEntity,
 )
 from coreason_tagger.tagger import CoreasonTaggerAsync
-from loguru import logger
 
 
 @pytest.fixture

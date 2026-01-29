@@ -10,7 +10,7 @@
 
 import asyncio
 import time
-from typing import Any, Optional, Union, cast
+from typing import Any, Optional, Union
 
 import anyio
 import httpx
@@ -266,10 +266,7 @@ class CoreasonTagger:
         strategy: ExtractionStrategy = ExtractionStrategy.SPEED_GLINER,
     ) -> list[LinkedEntity]:
         """Process text (blocking)."""
-        return cast(
-            list[LinkedEntity],
-            anyio.run(self._async.tag, text, labels, strategy),
-        )
+        return anyio.run(self._async.tag, text, labels, strategy)
 
     def tag_batch(
         self,
@@ -278,7 +275,4 @@ class CoreasonTagger:
         strategy: ExtractionStrategy = ExtractionStrategy.SPEED_GLINER,
     ) -> list[list[LinkedEntity]]:
         """Process batch of texts (blocking)."""
-        return cast(
-            list[list[LinkedEntity]],
-            anyio.run(self._async.tag_batch, texts, labels, strategy),
-        )
+        return anyio.run(self._async.tag_batch, texts, labels, strategy)

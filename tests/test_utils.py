@@ -10,8 +10,9 @@
 
 from unittest.mock import patch
 
-from coreason_tagger.utils.logger import setup_logger
 from loguru import logger
+
+from coreason_tagger.utils.logger import setup_logger
 
 
 def test_logger_initialization() -> None:

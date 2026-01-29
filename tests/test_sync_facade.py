@@ -12,6 +12,7 @@ from typing import Generator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
 from coreason_tagger.schema import ExtractionStrategy, LinkedEntity
 from coreason_tagger.tagger import CoreasonTagger
 

@@ -12,6 +12,7 @@ import json
 from unittest.mock import AsyncMock, patch
 
 import pytest
+
 from coreason_tagger.linker import VectorLinker
 
 

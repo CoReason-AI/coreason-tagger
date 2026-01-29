@@ -12,6 +12,7 @@ from typing import Generator, Tuple
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
 from coreason_tagger.assertion_detector import DistilBERTAssertionDetector
 from coreason_tagger.schema import AssertionStatus
 
