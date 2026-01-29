@@ -11,6 +11,7 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
+
 from coreason_tagger.interfaces import CodexClient
 from coreason_tagger.linker import VectorLinker
 from coreason_tagger.schema import EntityCandidate, ExtractionStrategy

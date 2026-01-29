@@ -11,6 +11,7 @@
 from unittest.mock import patch
 
 import pytest
+
 from coreason_tagger.utils.circuit_breaker import (
     CircuitBreaker,
     CircuitOpenError,
