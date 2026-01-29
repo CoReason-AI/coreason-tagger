@@ -3,6 +3,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+
 from coreason_tagger.interfaces import BaseExtractor
 from coreason_tagger.ner import ExtractorFactory
 from coreason_tagger.schema import EntityCandidate, ExtractionStrategy, LinkedEntity
