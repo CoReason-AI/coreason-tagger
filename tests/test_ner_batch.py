@@ -12,6 +12,7 @@ from typing import Generator
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 from coreason_tagger.ner import GLiNERExtractor
 from coreason_tagger.registry import get_gliner_model
 from coreason_tagger.schema import EntityCandidate
